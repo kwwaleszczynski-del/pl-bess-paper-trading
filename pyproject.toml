@@ -15,7 +15,6 @@ dependencies = [
     "pyarrow>=14",
     "scipy>=1.11",
     "scikit-learn>=1.4",
-    "plotly>=5.20",
     "matplotlib>=3.8",
     "requests>=2.31",
     "pse-opendata @ git+https://github.com/kwwaleszczynski-del/pse-opendata@8b01ec882b6f3af9c9ea91308293dda64108d705",
