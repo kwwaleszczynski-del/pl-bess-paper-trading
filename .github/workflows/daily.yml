@@ -1,0 +1,108 @@
+name: daily paper trading
+
+# Every morning before the SDAC gate closure (12:00 Polish time): settle the plans whose prices are published,
+# forecast tomorrow's prices, write the new plan to the track-record branch and redeploy the website.
+#
+# Off by default: scheduled runs only act when the repository variable DASHBOARD_SCHEDULE is "on".
+# A manual run (workflow_dispatch) always runs; after 12:00 it settles and rebuilds the site but makes no plan.
+# Requires Settings > Pages > Source = "GitHub Actions". With Source = "Deploy from a branch" (main, /docs)
+# the committed backtest-only snapshot in docs/ is served instead.
+
+on:
+  schedule:
+    - cron: "40 6 * * *"    # 07:40 CET / 08:40 CEST
+    - cron: "40 8 * * *"    # retry at 09:40 CET / 10:40 CEST, still before the gate; no-op when a plan exists
+  workflow_dispatch:
+
+permissions:
+  contents: write           # push the track-record branch
+  pages: write
+  id-token: write
+  actions: write            # keep-alive: re-enable this workflow so the schedule survives quiet months
+
+concurrency:
+  group: daily-paper-trading
+  cancel-in-progress: false
+
+jobs:
+  trade:
+    if: github.event_name == 'workflow_dispatch' || vars.DASHBOARD_SCHEDULE == 'on'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the track record (absent before the first plan)
+        uses: actions/checkout@v4
+        with:
+          ref: track-record
+          path: archive
+        continue-on-error: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install .
+
+      # monthly Parquet files of the PSE reports; nothing is committed to the repository
+      - name: Restore data cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: pse-data-${{ github.run_id }}
+          restore-keys: pse-data-
+
+      - name: Settle published days and plan tomorrow
+        run: python -m bess_paper daily --archive-dir archive
+
+      - name: Save data cache
+        if: always() && hashFiles('data/pse/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: pse-data-${{ github.run_id }}
+
+      # the plan must be public before the gate closure; a failed push fails the run
+      - name: Push the track record
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [ -f archive/README.md ] || exit 0
+          cd archive
+          if [ ! -d .git ]; then
+            git init -b track-record
+            git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Track record $(TZ=Europe/Warsaw date '+%Y-%m-%d %H:%M %Z')"
+          git push origin HEAD:track-record
+
+      - name: Build the website
+        run: python -m bess_paper site --archive-dir archive --results-dir results --out site
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      # GitHub disables scheduled workflows after 60 days without repository activity
+      - name: Keep the schedule alive
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/daily.yml/enable"
+
+  deploy:
+    needs: trade
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

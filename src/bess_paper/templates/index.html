@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Battery Paper Trading PL</title>
+<meta name="description" content="A 1 MW / 2 MWh battery that trades the Polish day-ahead market on paper every day: price forecast before gate closure, optimised schedule, next-day settlement and a live track record that is never recomputed.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='8' width='18' height='18' rx='3' fill='none' stroke='%232a78d6' stroke-width='2.5'/%3E%3Crect x='12' y='4' width='6' height='4' rx='1' fill='%232a78d6'/%3E%3Cpath d='M10 21l4-5 3 3 4-6' stroke='%23eb6834' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --ref: #52514e; --obs: #0b0b0b;
+  --pos: #2a78d6; --neg: #e34948; --mid: #f0efec;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --good-text: #006300; --bad-text: #b42a2a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --ref: #c3c2b7; --obs: #f0efec;
+    --pos: #3987e5; --neg: #e66767; --mid: #383835; --good-text: #0ca30c; --bad-text: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --ref: #c3c2b7; --obs: #f0efec;
+  --pos: #3987e5; --neg: #e66767; --mid: #383835; --good-text: #0ca30c; --bad-text: #e66767;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+header { padding: 32px 0 8px; }
+h1 { font-size: 28px; line-height: 1.2; margin: 0 0 6px; font-weight: 650; letter-spacing: -0.01em; }
+h2 { font-size: 20px; margin: 0 0 4px; font-weight: 620; }
+h3 { font-size: 15px; margin: 0 0 8px; font-weight: 600; }
+p { margin: 0 0 10px; }
+a { color: var(--s1); }
+.lede { color: var(--ink-2); max-width: 780px; }
+.meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; }
+.meta a { color: inherit; }
+section { margin: 28px 0; }
+.sub { color: var(--ink-2); font-size: 14px; margin-bottom: 14px; max-width: 840px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.tile .label { color: var(--ink-2); font-size: 13px; }
+.tile .value { font-size: 28px; font-weight: 620; line-height: 1.2; margin: 4px 0 2px; }
+.tile .unit { font-size: 15px; font-weight: 500; color: var(--ink-2); margin-left: 3px; }
+.tile .note { color: var(--muted); font-size: 12.5px; }
+.key { display: inline-block; width: 16px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+.key.dash { border-top-style: dashed; }
+.sw { display: inline-block; width: 12px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 2px 8px 2px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink); }
+.badge svg { width: 12px; height: 12px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.chart { width: 100%; height: 300px; }
+.chart.small { height: 190px; }
+.chart.tall { height: 340px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--ink-2); margin: 2px 0 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; white-space: nowrap; }
+th { color: var(--ink-2); font-weight: 600; font-size: 12.5px; }
+th:first-child, td:first-child { text-align: left; }
+tr.pick { cursor: pointer; }
+tr.pick:hover td { background: var(--mid); }
+tr.pick[aria-selected="true"] td { background: var(--mid); font-weight: 600; }
+.neg { color: var(--bad-text); }
+.scroll { overflow-x: auto; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.seg button { background: transparent; border: 0; padding: 5px 12px; font: inherit; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--grid); color: var(--ink); font-weight: 600; }
+.seg button:disabled { opacity: 0.45; cursor: default; }
+.note-box { color: var(--ink-2); font-size: 13.5px; padding: 12px 14px; border: 1px dashed var(--axis); border-radius: 10px; }
+.disclaimer { border: 1px solid var(--axis); border-left: 4px solid var(--warning); border-radius: 10px; padding: 12px 14px; font-size: 14px; color: var(--ink); background: var(--surface); margin-top: 14px; max-width: 840px; }
+.backtest { border-top: 2px dashed var(--axis); padding-top: 20px; }
+.tag { display: inline-block; font-size: 11.5px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); border: 1px solid var(--axis); border-radius: 6px; padding: 1px 6px; margin-left: 8px; vertical-align: 3px; }
+.method { columns: 2 340px; column-gap: 32px; color: var(--ink-2); font-size: 14px; }
+.method h3 { color: var(--ink); break-after: avoid; margin-top: 4px; }
+.method p, .method ul { break-inside: avoid; }
+.method ul { padding-left: 18px; margin: 0 0 12px; }
+.avail td, .avail th { white-space: normal; text-align: left; vertical-align: top; }
+footer { color: var(--muted); font-size: 12.5px; padding: 24px 0 40px; border-top: 1px solid var(--grid); margin-top: 32px; }
+footer a { color: inherit; }
+.toggle { margin-left: auto; background: transparent; border: 1px solid var(--border); color: var(--ink-2); border-radius: 8px; padding: 3px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.toprow { display: flex; align-items: flex-start; gap: 12px; }
+@media (max-width: 560px) { h1 { font-size: 23px; } .tile .value { font-size: 24px; } .chart { height: 260px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="toprow">
+    <div>
+      <h1>Battery paper trading on the Polish day-ahead market</h1>
+      <p class="lede">Every morning a 1&nbsp;MW / 2&nbsp;MWh battery forecasts tomorrow's day-ahead prices, plans when to
+      charge and discharge, and publishes the plan before the 12:00 gate closure. The next day the plan is settled on
+      the published SDAC clearing prices and added to a track record that is never recomputed.</p>
+    </div>
+    <button class="toggle" id="theme" type="button" aria-label="Toggle dark mode">Dark mode</button>
+  </div>
+  <div class="meta" id="meta"></div>
+  <div class="disclaimer"><b>Paper trading only.</b> No bids or offers are submitted to any market or exchange: a plan
+  is a file, and its result is computed from public prices. This is a research and portfolio project, not
+  investment, trading or financial advice, and past or simulated results say nothing reliable about future results.</div>
+</header>
+
+<section id="plan">
+  <h2 id="plan-title">Plan</h2>
+  <div class="sub" id="plan-sub"></div>
+  <div class="seg" role="group" aria-label="Which day" id="plan-seg">
+    <button type="button" id="seg-next" aria-pressed="true">Next delivery day</button><button type="button" id="seg-last" aria-pressed="false">Last settled day</button>
+  </div>
+  <div class="tiles" id="plan-tiles"></div>
+  <div class="grid2" style="margin-top:12px" id="plan-charts">
+    <div class="card"><h3>Day-ahead price, PLN/MWh</h3><div class="legend" id="leg-plan-price"></div><div class="chart" id="plan-price"></div></div>
+    <div class="card"><h3>Schedule, MW</h3><div class="legend" id="leg-plan-net"></div><div class="chart small" id="plan-net"></div><h3 style="margin-top:8px">State of charge, MWh</h3><div class="chart small" id="plan-soc"></div></div>
+  </div>
+</section>
+
+<section id="live">
+  <h2>Live track record</h2>
+  <div class="sub" id="live-sub"></div>
+  <div class="tiles" id="live-tiles"></div>
+  <div id="live-body">
+    <div class="card" style="margin-top:12px"><h3>Cumulative P&amp;L since the first published plan, PLN</h3><div class="legend" id="leg-live-cum"></div><div class="chart" id="live-cum"></div></div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="card scroll"><h3>Latest days</h3><table id="live-table"></table></div>
+      <div class="card scroll" id="live-bw-card"><h3>Best and worst days</h3><table id="live-bw"></table></div>
+    </div>
+  </div>
+</section>
+
+<section id="backtest" class="backtest">
+  <h2>Backtest<span class="tag">simulated</span></h2>
+  <div class="sub" id="bt-sub"></div>
+  <div class="tiles" id="bt-tiles"></div>
+  <div class="card" style="margin-top:12px"><h3>Cumulative P&amp;L, PLN</h3><div class="legend" id="leg-bt-cum"></div><div class="chart tall" id="bt-cum"></div></div>
+  <div class="card" style="margin-top:12px"><h3>Share of the perfect-foresight P&amp;L, by month</h3><div class="legend" id="leg-bt-cap"></div><div class="chart" id="bt-cap"></div></div>
+  <div class="card scroll" style="margin-top:12px">
+    <h3>Forecasts and strategies</h3>
+    <div class="seg" role="group" aria-label="Period" id="bt-period"></div>
+    <table id="bt-table"></table>
+    <div class="sub" style="margin:8px 0 0;font-size:12.5px" id="bt-table-note"></div>
+  </div>
+  <div class="grid2" style="margin-top:12px">
+    <div class="card scroll"><h3>Best and worst backtest days</h3><div class="sub" style="font-size:12.5px;margin-bottom:6px">Select a day to see its forecast and schedule.</div><table id="bt-bw"></table></div>
+    <div class="card"><h3 id="bt-day-title">Day</h3><div class="legend" id="leg-bt-day"></div><div class="chart small" id="bt-day-price"></div><div class="legend" id="leg-bt-day-net"></div><div class="chart small" id="bt-day-net"></div></div>
+  </div>
+</section>
+
+<section id="asof">
+  <h2>What is known at the decision</h2>
+  <div class="sub">The plan for delivery day D is made on D-1 at about 10:00 Polish time. Only information published by
+  then may enter the forecast. Publication times below were read from the <code>publication_ts</code> field of the PSE
+  reports API in October 2026.</div>
+  <div class="card scroll">
+    <table class="avail">
+      <thead><tr><th>Data (PSE report)</th><th>Published</th><th>Use at the decision for D</th></tr></thead>
+      <tbody>
+        <tr><td>SDAC price of the Polish zone (<code>csdac-pln</code>), RCE (<code>rce-pln</code>)</td><td>D-1, about 13:30-14:45, after the 12:00 gate; not revised</td><td>Prices up to D-1 are known and used (lags of 1, 2 and 7 days, shape of D-1). Prices of D are the settlement prices.</td></tr>
+        <tr><td>Demand, wind and PV generation (<code>his-wlk-cal</code>)</td><td>Near real time, then republished the next night and corrected for up to about a month</td><td>Used up to 06:00 on D-1 (day means of D-2, night of D-1). The backtest can only see the latest version, see below.</td></tr>
+        <tr><td>Day-ahead coordinated plan PKD (<code>pdgopkd</code>: forecast demand, wind, PV)</td><td>D-1, about 15:30, after the gate</td><td>Not usable.</td></tr>
+        <tr><td>Daily peak demand forecast (<code>pdgsz</code>), reserve forecast (<code>ro-prog</code>)</td><td>D-1, from about 15:30, after the gate</td><td>Not usable.</td></tr>
+        <tr><td>5-day coordination plan PK5L (<code>pk5l-wp</code>: wind and PV forecasts, demand, reserves)</td><td>Every afternoon (about 14:30-15:30) for today to D+5, updated during the day</td><td>The D-2 version is available at the decision, but the API keeps only the latest version of each hour, so it cannot be backtested. The live run archives it every morning for later models; it is not used yet.</td></tr>
+        <tr><td>Imbalance price forecasts (<code>price-fcst</code>), system cost forecasts (<code>sk</code>)</td><td>During the delivery day</td><td>Not usable.</td></tr>
+        <tr><td>Wind and PV forecast of <a href="https://kwwaleszczynski-del.github.io/pl-res-forecast-climate/">pl-res-forecast-climate</a></td><td>Daily at about 10:40, archived since 26.10.2026</td><td>Not used: there is no archived as-of history to backtest it on yet.</td></tr>
+        <tr><td>Calendar (weekday, Polish public holidays, season)</td><td>Known in advance</td><td>Used.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="method">
+  <h2>Method</h2>
+  <div class="method card">
+    <h3>Forecast</h3>
+    <p>One gradient boosting model per quantile (10 %, 50 %, 90 %; scikit-learn <code>HistGradientBoostingRegressor</code>
+    with pinball loss) predicts the price of every quarter-hour of D from 26 as-of features: time of day, weekday,
+    holidays, season, the prices of D-1, D-2 and D-7 at the same time, the shape of D-1 (mean, minimum, maximum,
+    spread, night, midday and evening levels, share of negative prices) and PSE system data up to 06:00 on D-1. It is
+    trained on the 365 preceding delivery days. Until 30.09.2025 the SDAC products were hourly, so the forecast and the
+    schedule are hourly on those days.</p>
+    <h3>Schedule</h3>
+    <p>A mixed-integer linear program (HiGHS) maximises the energy revenue at the median forecast minus a
+    degradation cost of 30 PLN per MWh discharged, with 87 % round-trip efficiency, state of charge between 5 % and
+    95 %, 50 % at the start and the end of every day, no simultaneous charge and discharge and at most 1.5 cycles per
+    day. The plan is a fixed schedule (price-taking quantities), as if submitted to SDAC without price limits.</p>
+    <h3>Settlement and benchmarks</h3>
+    <p>Every strategy is settled on the SDAC clearing price of the Polish zone with the same battery and costs:</p>
+    <ul>
+      <li><b>Forecast + MILP</b>: the live strategy.</li>
+      <li><b>Yesterday's prices</b>: the schedule that would have been optimal on D-1, known at the decision.</li>
+      <li><b>Fixed hours</b>: <span id="fixed-text"></span> every day, at full power within the limits. The hours come
+      from the average price profile of June 2023 to June 2024, before the first backtest day.</li>
+      <li><b>Perfect foresight</b>: the schedule optimised on the clearing prices themselves, an upper bound that
+      cannot be traded.</li>
+    </ul>
+    <h3>Live record</h3>
+    <ul>
+      <li>The plan for D is written to the public <code>track-record</code> branch before 12:00 on D-1, with the model
+      inputs and the PSE 5-day plan as seen at that moment. A plan is never replaced; after the gate no plan is made.</li>
+      <li>Each day is settled once, when its prices are published, and appended to <code>ledger.csv</code>. Rows are
+      never rewritten, also when the code changes later. A day without a plan counts as no trade (0 PLN).</li>
+      <li>The record starts on the first published plan; the backtest is shown separately and never merged into it.</li>
+    </ul>
+    <h3>Where the backtest is not exactly as-of</h3>
+    <ul>
+      <li>PSE system data: the API serves only the latest revision, so the backtest sees corrected values where the
+      live run sees first estimates. They enter only as day and night averages.</li>
+      <li>Models are refitted weekly in the backtest and daily in the live run.</li>
+      <li>The first backtest models (June 2024 to June 2025) are partly trained on the hourly RCE of the legacy PSE export,
+      the price of the day-ahead market before the balancing market reform of 14.06.2024.</li>
+      <li>The model settings were fixed before the backtest and not tuned on it, but this project was designed after
+      the period it tests.</li>
+    </ul>
+    <h3>Limitations</h3>
+    <ul>
+      <li>1 MW is assumed too small to move prices; fees, imbalance, grid tariffs, taxes and financing are ignored.</li>
+      <li>Only the day-ahead market: no intraday trading, balancing services or capacity market revenue.</li>
+      <li>A real trader would submit price-dependent bids; a fixed schedule is a simple, conservative stand-in.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div id="foot"></div>
+</footer>
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js" integrity="sha384-cCVCZkAjYNxaYKbM8lsArLznDF/SvMFr1jcZrvOpSTCa0W40ZAdLzHCEulnUa5i7" crossorigin="anonymous" charset="utf-8"></script>
+<script>
+"use strict";
+const D = JSON.parse(document.getElementById("data").textContent);
+const REPO = "https://github.com/kwwaleszczynski-del/pl-bess-paper-trading";
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = (v, d = 0) => (v === null || v === undefined || Number.isNaN(v)) ? "-" : Number(v).toLocaleString("en-GB", {minimumFractionDigits: d, maximumFractionDigits: d});
+const pct = (v, d = 0) => (v === null || v === undefined) ? "-" : fmt(100 * v, d) + " %";
+const el = (tag, attrs = {}, text) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text !== undefined) e.textContent = text; return e; };
+const hasPlotly = () => typeof Plotly !== "undefined";
+const CFG = {displayModeBar: false, responsive: true};
+const NAMES = {model: "Forecast + MILP", perfect: "Perfect foresight", yesterday: "Yesterday's prices", fixed: "Fixed hours",
+               last_week: "Last week's prices", week_mean: "7-day average"};
+const COLOR = {model: "--s1", yesterday: "--s2", fixed: "--s3", perfect: "--ref"};
+let planView = "next", btPeriod = "all", btDay = null;
+
+function note(target, msg) { $(target).replaceChildren(el("div", {class: "note-box"}, msg)); }
+function alpha(hex, a) { const h = hex.replace("#", ""); const n = parseInt(h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
+function dayLabel(iso) { return new Date(iso + "T12:00:00").toLocaleDateString("en-GB", {weekday: "short", day: "numeric", month: "short", year: "numeric"}); }
+function warsaw(iso, opts) { return new Date(iso).toLocaleString("en-GB", Object.assign({timeZone: "Europe/Warsaw"}, opts)); }
+function wall(iso) { return iso.slice(0, 16); }   // local wall-clock time from an ISO string with offset
+function legend(id, items) {
+  const box = $(id); box.replaceChildren();
+  for (const [label, color, kind] of items) {
+    const s = el("span"); const sw = el("span", {class: kind === "line" ? "key" : kind === "dash" ? "key dash" : "sw"});
+    if (kind === "line" || kind === "dash") sw.style.borderColor = color; else sw.style.background = color;
+    s.append(sw, document.createTextNode(label)); box.append(s);
+  }
+}
+function baseLayout(extra = {}) {
+  const ax = {gridcolor: css("--grid"), linecolor: css("--axis"), zeroline: false, tickfont: {color: css("--muted")}};
+  return Object.assign({
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: {family: "system-ui, -apple-system, Segoe UI, sans-serif", size: 12, color: css("--ink-2")},
+    margin: {l: 56, r: 12, t: 8, b: 36}, showlegend: false, hovermode: "x unified",
+    hoverlabel: {bgcolor: css("--surface"), bordercolor: css("--axis"), font: {color: css("--ink")}},
+    xaxis: Object.assign({}, ax, {showspikes: true, spikecolor: css("--axis"), spikethickness: 1, spikedash: "solid", spikemode: "across"}),
+    yaxis: Object.assign({}, ax),
+  }, extra);
+}
+function tile(label, value, unit, noteText) {
+  const t = el("div", {class: "card tile"});
+  t.append(el("div", {class: "label"}, label));
+  const v = el("div", {class: "value"}, value); if (unit) v.append(el("span", {class: "unit"}, unit));
+  t.append(v);
+  if (noteText) t.append(el("div", {class: "note"}, noteText));
+  return t;
+}
+function table(target, head, rows, opts = {}) {
+  const t = $(target); t.replaceChildren();
+  const thead = el("thead"); const hr = el("tr"); for (const h of head) hr.append(el("th", {}, h)); thead.append(hr);
+  const tb = el("tbody");
+  for (const r of rows) {
+    const tr = el("tr");
+    r.cells.forEach((c, i) => { const td = el("td", {}, c); if (r.neg && r.neg[i]) td.className = "neg"; tr.append(td); });
+    if (r.onclick) { tr.className = "pick"; tr.tabIndex = 0; tr.setAttribute("aria-selected", r.selected ? "true" : "false");
+      tr.addEventListener("click", r.onclick); tr.addEventListener("keydown", (e) => { if (e.key === "Enter") r.onclick(); }); }
+    tb.append(tr);
+  }
+  t.append(thead, tb);
+}
+function cumsum(a) { let s = 0; return a.map((v) => (s += (v || 0))); }
+
+function header() {
+  const m = $("meta"); m.replaceChildren();
+  m.append(el("span", {}, "Updated " + warsaw(D.generated_utc, {dateStyle: "medium", timeStyle: "short"}) + " (Warsaw)"));
+  const b = D.battery;
+  m.append(el("span", {}, `${fmt(b.power_mw, 0)} MW / ${fmt(b.energy_mwh, 0)} MWh, ${fmt(100 * b.round_trip_efficiency, 0)} % round trip`));
+  m.append(el("span", {}, "Prices: SDAC, Polish bidding zone (PSE)"));
+  const a = el("a", {href: REPO}, "Source code"); m.append(a);
+  const t = el("a", {href: REPO + "/tree/track-record"}, "Archive of plans"); m.append(t);
+  $("fixed-text").textContent = D.fixed_windows;
+}
+
+// ---- plan ----------------------------------------------------------------------------------------------------------
+function planData() { const L = D.live || {}; return planView === "next" ? L.next_plan : L.last_settled; }
+function planSection() {
+  const L = D.live || {};
+  $("seg-next").setAttribute("aria-pressed", planView === "next"); $("seg-last").setAttribute("aria-pressed", planView === "last");
+  $("seg-last").disabled = !L.last_settled; $("seg-next").disabled = !L.next_plan;
+  const P = planData();
+  const tiles = $("plan-tiles"); tiles.replaceChildren();
+  $("plan-seg").hidden = !L.next_plan && !L.last_settled;
+  if (!P) {
+    $("plan-title").textContent = "Plan";
+    $("plan-sub").textContent = "";
+    $("plan-charts").hidden = true;
+    tiles.append(el("div", {class: "note-box"}, L.start ? "No plan is open at the moment; the next one is published on the morning before its delivery day."
+      : "No plan has been published yet. The live record starts with the first plan made by the daily run; until then the page shows the backtest only."));
+    return;
+  }
+  $("plan-charts").hidden = false;
+  $("plan-title").textContent = `Plan for ${dayLabel(P.delivery_date)}`;
+  const issued = warsaw(P.issued_utc, {dateStyle: "medium", timeStyle: "short"});
+  const lead = (new Date(P.gate_closure_utc) - new Date(P.issued_utc)) / 60000;
+  const sub = $("plan-sub"); sub.replaceChildren();
+  sub.append(document.createTextNode(`Issued ${issued} (Warsaw), ${Math.floor(lead / 60)} h ${Math.round(lead % 60)} min before the gate closure, from prices up to ${P.inputs.last_price_day}. `));
+  sub.append(el("a", {href: `${REPO}/blob/track-record/${P.path}`}, "Plan file"));
+  sub.append(document.createTextNode(". "));
+  const settled = P.actual && D.live.ledger ? D.live.ledger.date.indexOf(P.delivery_date) : -1;
+  if (settled >= 0) {
+    const g = (k) => D.live.ledger[k][settled];
+    tiles.append(tile("Result", fmt(g("pnl_model")), "PLN", `Perfect foresight ${fmt(g("pnl_perfect"))} PLN`));
+    tiles.append(tile("Yesterday's prices", fmt(g("pnl_yesterday")), "PLN", "Benchmark, same day"));
+    tiles.append(tile("Fixed hours", fmt(g("pnl_fixed")), "PLN", "Benchmark, same day"));
+    tiles.append(tile("Forecast error", fmt(g("mae_model")), "PLN/MWh", `Mean absolute error; yesterday's prices ${fmt(g("mae_yesterday"))}`));
+  } else {
+    tiles.append(tile("Expected P&L", fmt(P.expected_pnl_pln), "PLN", "At the median forecast; not a promise"));
+    tiles.append(tile("Energy sold", fmt(P.sold_mwh, 2), "MWh", `Bought ${fmt(P.bought_mwh, 2)} MWh`));
+    const mean = P.p50.reduce((a, b) => a + b, 0) / P.p50.length;
+    tiles.append(tile("Forecast mean price", fmt(mean), "PLN/MWh", `Range ${fmt(Math.min(...P.p50))} to ${fmt(Math.max(...P.p50))}`));
+    tiles.append(tile("Settlement", "pending", "", "When PSE publishes the SDAC prices of the day, in the early afternoon of the day before delivery"));
+  }
+  if (!hasPlotly()) return;
+  dayCharts(P, "plan-price", "plan-net", "plan-soc", "leg-plan-price", "leg-plan-net");
+}
+function dayCharts(P, priceId, netId, socId, legPrice, legNet, perfectNet) {
+  const x = P.t.map(wall); const c1 = css("--s1");
+  const price = [
+    {x, y: P.p10, mode: "lines", line: {width: 0, shape: "hv"}, hoverinfo: "skip"},
+    {x, y: P.p90, mode: "lines", line: {width: 0, shape: "hv"}, fill: "tonexty", fillcolor: alpha(c1, 0.16), hoverinfo: "skip"},
+    {x, y: P.p50, mode: "lines", line: {width: 2, color: c1, shape: "hv"}, name: "Forecast",
+     customdata: P.p10.map((v, i) => [v, P.p90[i]]), hovertemplate: "<b>%{y:.0f}</b> forecast (10-90 %: %{customdata[0]:.0f} to %{customdata[1]:.0f})<extra></extra>"},
+  ];
+  const items = [["Median forecast", c1, "line"], ["10-90 % range", alpha(c1, 0.3)]];
+  if (P.actual) { price.push({x, y: P.actual, mode: "lines", line: {width: 2, color: css("--obs"), shape: "hv"}, name: "SDAC", hovertemplate: "<b>%{y:.0f}</b> SDAC<extra></extra>"}); items.push(["SDAC clearing price", css("--obs"), "line"]); }
+  legend(legPrice, items);
+  Plotly.react(priceId, price, baseLayout({yaxis: Object.assign(baseLayout().yaxis, {zeroline: true, zerolinecolor: css("--axis")})}), CFG);
+  const net = [{type: "bar", x, y: P.net, marker: {color: P.net.map((v) => v >= 0 ? css("--pos") : css("--neg"))}, name: "Plan",
+               hovertemplate: "<b>%{y:.2f} MW</b><extra></extra>"}];
+  const nitems = [["Sell (discharge)", css("--pos")], ["Buy (charge)", css("--neg")]];
+  if (perfectNet) { net.push({x, y: perfectNet, mode: "lines", line: {width: 1.5, color: css("--ref"), dash: "dot", shape: "hv"}, name: "Perfect foresight", hovertemplate: "%{y:.2f} MW perfect foresight<extra></extra>"}); nitems.push(["Perfect-foresight schedule", css("--ref"), "dash"]); }
+  legend(legNet, nitems);
+  Plotly.react(netId, net, baseLayout({bargap: 0.1, margin: {l: 56, r: 12, t: 4, b: 28}, yaxis: Object.assign(baseLayout().yaxis, {range: [-1.15, 1.15], zeroline: true, zerolinecolor: css("--axis")})}), CFG);
+  if (socId && P.soc) {
+    Plotly.react(socId, [{x, y: P.soc, mode: "lines", line: {width: 2, color: css("--ink-2")}, name: "SoC", hovertemplate: "<b>%{y:.2f} MWh</b><extra></extra>"}],
+      baseLayout({margin: {l: 56, r: 12, t: 4, b: 28}, yaxis: Object.assign(baseLayout().yaxis, {range: [0, D.battery.energy_mwh]})}), CFG);
+  }
+}
+
+// ---- live --------------------------------------------------------------------------------------------------------
+function liveSection() {
+  const L = D.live || {}; const G = L.ledger;
+  const tiles = $("live-tiles"); tiles.replaceChildren();
+  if (!G || !G.date.length) {
+    $("live-sub").textContent = "";
+    $("live-body").hidden = true;
+    tiles.append(el("div", {class: "note-box"}, L.start ? `The first plan was published for ${dayLabel(L.start)}; results appear here once that day is settled.`
+      : "The live track record starts on the first day a plan is published and is never recomputed. Nothing has been published yet, so there are no live results; the backtest below is simulated."));
+    return;
+  }
+  $("live-body").hidden = false;
+  const n = G.date.length; const sum = (k) => G[k].reduce((a, b) => a + (b || 0), 0);
+  const traded = G.status.filter((s) => s === "traded").length;
+  $("live-sub").textContent = `${n} settled delivery day${n === 1 ? "" : "s"} from ${dayLabel(G.date[0])} to ${dayLabel(G.date[n - 1])}; ${traded} with a published plan, ${n - traded} without (counted as no trade). Every row was written once, after its prices were published.`;
+  const pf = sum("pnl_perfect");
+  tiles.append(tile("Forecast + MILP", fmt(sum("pnl_model")), "PLN", `${pct(pf ? sum("pnl_model") / pf : null)} of perfect foresight (${fmt(pf)} PLN)`));
+  tiles.append(tile("Yesterday's prices", fmt(sum("pnl_yesterday")), "PLN", `${pct(pf ? sum("pnl_yesterday") / pf : null)} of perfect foresight`));
+  tiles.append(tile("Fixed hours", fmt(sum("pnl_fixed")), "PLN", `${pct(pf ? sum("pnl_fixed") / pf : null)} of perfect foresight`));
+  const mae = G.mae_model.filter((v) => v !== null); const maey = G.mae_yesterday.filter((v) => v !== null);
+  tiles.append(tile("Forecast error", fmt(mae.reduce((a, b) => a + b, 0) / (mae.length || 1)), "PLN/MWh", `Mean absolute error; yesterday's prices ${fmt(maey.reduce((a, b) => a + b, 0) / (maey.length || 1))}`));
+  const rows = G.date.map((d, i) => i).reverse().slice(0, 14).map((i) => ({
+    cells: [G.date[i], G.status[i] === "traded" ? "" : "no plan", fmt(G.pnl_model[i]), fmt(G.pnl_perfect[i]), fmt(G.pnl_yesterday[i]), fmt(G.pnl_fixed[i]), fmt(G.mae_model[i])],
+    neg: [false, false, G.pnl_model[i] < 0, false, G.pnl_yesterday[i] < 0, G.pnl_fixed[i] < 0, false]}));
+  table("live-table", ["Day", "", "Model", "Perfect", "Yesterday", "Fixed", "MAE"], rows);
+  const bw = [...(L.best || []).map((r) => ["best", r]), ...(L.worst || []).map((r) => ["worst", r])];
+  $("live-bw-card").hidden = !bw.length;
+  table("live-bw", ["", "Day", "P&L", "Perfect", "MAE"], bw.map(([k, r]) => ({cells: [k, r.date, fmt(r.pnl), fmt(r.perfect), fmt(r.mae)], neg: [false, false, r.pnl < 0]})));
+  if (!hasPlotly()) return;
+  cumChart("live-cum", "leg-live-cum", G.date, {model: G.pnl_model, yesterday: G.pnl_yesterday, fixed: G.pnl_fixed, perfect: G.pnl_perfect});
+}
+function cumChart(target, legId, dates, series) {
+  // the curve starts at zero on the day before the first settled day
+  const d0 = new Date(dates[0] + "T12:00:00Z"); d0.setUTCDate(d0.getUTCDate() - 1);
+  const x = [d0.toISOString().slice(0, 10), ...dates];
+  const few = dates.length <= 31;
+  const traces = []; const items = [];
+  for (const k of ["perfect", "model", "yesterday", "fixed"]) {
+    if (!series[k]) continue;
+    const c = css(COLOR[k]); const y = [0, ...cumsum(series[k])];
+    traces.push({x, y, mode: few ? "lines+markers" : "lines", marker: {size: 8, color: c, line: {color: css("--surface"), width: 2}},
+                 line: {width: 2, color: c, dash: k === "perfect" ? "dash" : "solid"}, name: NAMES[k],
+                 hovertemplate: `${NAMES[k]}: <b>%{y:,.0f} PLN</b><extra></extra>`});
+    items.push([NAMES[k] + (k === "perfect" ? " (upper bound)" : ""), c, k === "perfect" ? "dash" : "line"]);
+  }
+  legend(legId, items);
+  const xaxis = Object.assign(baseLayout().xaxis, {type: "date", hoverformat: "%a %d %b %Y"}, few ? {dtick: 86400000, tickformat: "%d %b"} : {});
+  Plotly.react(target, traces, baseLayout({xaxis, yaxis: Object.assign(baseLayout().yaxis, {rangemode: "tozero", tickformat: ",.0f"})}), CFG);
+}
+
+// ---- backtest ----------------------------------------------------------------------------------------------------
+function btSection() {
+  const B = D.backtest;
+  if (!B) { note("bt-tiles", "No backtest results in this build."); return; }
+  const S = B.summary;
+  $("bt-sub").textContent = `Walk-forward simulation over ${fmt(S.days)} delivery days, ${dayLabel(S.first_day)} to ${dayLabel(S.last_day)}, with the inputs as they were known at each decision (see the exceptions under Method). This is not the live record: it was computed after the fact, and it is recomputed when the code changes.`;
+  const tiles = $("bt-tiles"); tiles.replaceChildren();
+  tiles.append(tile("Forecast + MILP", fmt(S.pnl_per_mw_year_model / 1000), "k PLN/MW/yr", `${pct(S.capture_model)} of perfect foresight`));
+  tiles.append(tile("Perfect foresight", fmt(S.pnl_per_mw_year_perfect / 1000), "k PLN/MW/yr", "Upper bound, not tradable"));
+  tiles.append(tile("Yesterday's prices", fmt(S.pnl_per_mw_year_yesterday / 1000), "k PLN/MW/yr", `${pct(S.capture_yesterday)} of perfect foresight`));
+  tiles.append(tile("Fixed hours", fmt(S.pnl_per_mw_year_fixed / 1000), "k PLN/MW/yr", `${pct(S.capture_fixed)} of perfect foresight`));
+  // forecaster table
+  const seg = $("bt-period"); seg.replaceChildren();
+  const labels = {all: "All days", hourly: "Hourly products", quarter: "15-minute products"};
+  for (const k of Object.keys(B.table)) {
+    const b = el("button", {type: "button", "aria-pressed": k === btPeriod ? "true" : "false"}, labels[k] || k);
+    b.addEventListener("click", () => { btPeriod = k; btSection(); }); seg.append(b);
+  }
+  const T = B.table[btPeriod];
+  table("bt-table", ["Strategy / forecast", "P&L, PLN", "k PLN/MW/yr", "Share of perfect", "MAE", "RMSE", "Rank corr.", "Cycles/day"],
+    T.rows.map((r) => ({cells: [NAMES[r.name] || r.name, fmt(r.pnl), fmt(r.per_mw_year / 1000, 1), pct(r.capture, 1), fmt(r.mae, 1), fmt(r.rmse, 1), fmt(r.rank, 3), fmt(r.cycles, 2)]})));
+  $("bt-table-note").textContent = `${T.first} to ${T.last}, ${T.days} days. MAE and RMSE in PLN/MWh at the product resolution; rank correlation: Spearman correlation of forecast and price within each day, averaged (it is what the schedule depends on). The 10-90 % range of the model covered ${pct(T.cover80, 0)} of prices.`;
+  const bw = [...B.best.map((r) => ["best", r]), ...B.worst.map((r) => ["worst", r])];
+  if (!btDay && bw.length) btDay = bw[bw.length - 1][1].date;
+  table("bt-bw", ["", "Day", "P&L", "Perfect", "MAE"], bw.map(([k, r]) => ({cells: [k, r.date, fmt(r.pnl), fmt(r.perfect), fmt(r.mae)], neg: [false, false, r.pnl < 0],
+    selected: r.date === btDay, onclick: () => { btDay = r.date; btSection(); }})));
+  if (!hasPlotly()) return;
+  const dd = B.daily;
+  cumChart("bt-cum", "leg-bt-cum", dd.date, {model: dd.model, yesterday: dd.yesterday, fixed: dd.fixed, perfect: dd.perfect});
+  const M = B.monthly; const items = []; const traces = [];
+  for (const k of ["model", "yesterday", "fixed"]) {
+    const c = css(COLOR[k]);
+    traces.push({x: M.month, y: M[k].map((v, i) => M.perfect[i] ? v / M.perfect[i] : null), mode: "lines+markers", marker: {size: 8, color: c, line: {color: css("--surface"), width: 2}},
+                 line: {width: 2, color: c}, name: NAMES[k], hovertemplate: `${NAMES[k]}: <b>%{y:.0%}</b><extra></extra>`});
+    items.push([NAMES[k], c, "line"]);
+  }
+  legend("leg-bt-cap", items);
+  Plotly.react("bt-cap", traces, baseLayout({yaxis: Object.assign(baseLayout().yaxis, {tickformat: ".0%", zeroline: true, zerolinecolor: css("--axis")}),
+    shapes: [{type: "line", xref: "paper", x0: 0, x1: 1, y0: 1, y1: 1, line: {color: css("--ref"), width: 1, dash: "dash"}}]}), CFG);
+  const E = B.examples[btDay];
+  if (E) {
+    $("bt-day-title").textContent = `${dayLabel(btDay)}: forecast and schedule`;
+    dayCharts(E, "bt-day-price", "bt-day-net", null, "leg-bt-day", "leg-bt-day-net", E.net_perfect);
+  }
+}
+
+function footer() {
+  const f = $("foot"); f.replaceChildren();
+  f.append(el("p", {}, "Data: information obtained from www.pse.pl (PSE S.A. reports csdac-pln, his-wlk-cal, pk5l-wp and, for 2023-24, the legacy export PL_CENY_RYN_EN, PL_GEN_WIATR, PL_WYK_KSE), state as of the update time above. The information has been processed: quarter-hourly prices averaged to hourly products where needed, forecasts, schedules and P&L computed by this project. Not affiliated with or endorsed by PSE S.A., TGE or any market operator."));
+  const p = el("p"); p.append(document.createTextNode("Paper trading only, not investment advice. Code under the MIT licence: "));
+  p.append(el("a", {href: REPO}, "github.com/kwwaleszczynski-del/pl-bess-paper-trading")); p.append(document.createTextNode("."));
+  f.append(p);
+}
+
+function drawAll() {
+  header(); footer();
+  const safe = (fn) => { try { fn(); } catch (e) { console.error(e); } };
+  safe(planSection); safe(liveSection); safe(btSection);
+  if (!hasPlotly()) for (const id of ["plan-price", "plan-net", "plan-soc", "live-cum", "bt-cum", "bt-cap", "bt-day-price", "bt-day-net"]) note(id, "Charts need the Plotly library, which could not be loaded. The tables still show the numbers.");
+}
+$("seg-next").addEventListener("click", () => { planView = "next"; planSection(); });
+$("seg-last").addEventListener("click", () => { planView = "last"; planSection(); });
+if (D.live && !D.live.next_plan && D.live.last_settled) planView = "last";
+function setTheme(t) { document.documentElement.setAttribute("data-theme", t); try { localStorage.setItem("theme", t); } catch (e) {} $("theme").textContent = t === "dark" ? "Light mode" : "Dark mode"; drawAll(); }
+$("theme").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  setTheme(cur === "dark" ? "light" : "dark");
+});
+try { const t = localStorage.getItem("theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+if ((document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark") $("theme").textContent = "Light mode";
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+drawAll();
+</script>
+</body>
+</html>
