@@ -70,10 +70,10 @@ jobs:
         run: |
           [ -f archive/README.md ] || exit 0
           cd archive
-          if [ ! -d .git ]; then
-            git init -b track-record
-            git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          fi
+          # before the first plan the checkout above fails and may leave an empty repository behind
+          [ -d .git ] || git init -b track-record
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
