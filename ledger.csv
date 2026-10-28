@@ -1,0 +1,2 @@
+date,status,issued_utc,settled_utc,code_version,intervals,mean_price,spread,pnl_model,pnl_perfect,pnl_yesterday,pnl_fixed,gross_model,sold_mwh_model,cycles_model,sold_mwh_perfect,cycles_perfect,mae_model,mae_yesterday,rank_model,rank_yesterday,cover80,pinball
+2026-10-28,traded,2026-10-27T07:29:46+00:00,2026-10-28T07:39:41+00:00,0.1.0+0d60535e4f79,96,1142.7423,1790.3000,1099.4540,1881.0621,980.5036,313.9593,1180.4540,2.7000,1.5000,2.7000,1.5000,445.0867,458.5685,0.7768,0.5438,0.0208,171.2348
