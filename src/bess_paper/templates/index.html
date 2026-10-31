@@ -268,7 +268,9 @@ function legend(id, items) {
   }
 }
 function baseLayout(extra = {}) {
-  const ax = {gridcolor: css("--grid"), linecolor: css("--axis"), zeroline: false, tickfont: {color: css("--muted")}};
+  // automargin: wider tick labels (other fonts, narrow screens) get room instead of running past the chart
+  const ax = {gridcolor: css("--grid"), linecolor: css("--axis"), zeroline: false, tickfont: {color: css("--muted")},
+              automargin: true};
   return Object.assign({
     paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
     font: {family: "system-ui, -apple-system, Segoe UI, sans-serif", size: 12, color: css("--ink-2")},
