@@ -17,7 +17,8 @@ QH_FROM = date(2025, 10, 1)         # first delivery day with 15-minute SDAC pro
 WARMUP_START = date(2023, 6, 1)     # legacy hourly history, used only to train the first models of the backtest
 
 GATE_LOCAL = time(12, 0)            # SDAC order book gate closure for delivery day D, on D-1 (Polish time)
-DECISION_LOCAL = time(10, 0)        # nominal decision time of the forecast and plan, on D-1
+DECISION_LOCAL = time(7, 0)         # every input of the plan for D is published by about this time on D-1; the plan
+                                    # is issued by the first scheduled run after it that starts before the gate
 FUND_CUTOFF_LOCAL = time(6, 0)      # system data of D-1 (wind, PV, demand) are used up to this local time only
 
 PRICE_REPORT = "csdac-pln"          # settlement price: SDAC clearing price of the Polish bidding zone

@@ -1,6 +1,7 @@
 """As-of features for the price forecast of delivery day D, made on D-1 before the SDAC gate closure.
 
-Information set at the decision (D-1, 10:00 Polish time, two hours before the 12:00 gate):
+Information set at the decision (D-1, published by about 07:00 Polish time, five hours before the 12:00 gate; the
+plan is issued by the first scheduled run that starts between then and the gate):
 - day-ahead prices of delivery days up to D-1 (published around 14:00 on D-2, not revised afterwards);
 - hourly wind, PV and demand of PSE `his-wlk-cal` for hours that end by 06:00 on D-1;
 - the calendar of D (weekday, public holidays, season).

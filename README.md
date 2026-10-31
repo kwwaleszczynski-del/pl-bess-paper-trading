@@ -76,29 +76,41 @@ into the morning and afternoon peaks, close to the perfect-foresight schedule (d
 ## How it works
 
 ```
-D-1, 07:40-08:40 Polish time (GitHub Actions)                   D-1, ~13:30-14:45       D, morning run
-  settle every published day ──> ledger.csv (append only)          PSE publishes          settle D
-  load PSE data known at the decision                              SDAC prices of D  ──>  (ledger row)
+D-1, ~07:00    inputs of the plan published (prices up to D-1, system data up to 06:00)
+D-1, first scheduled run that starts before 12:00 (attempts 07:10-10:40 CET, 08:10-11:40 CEST; GitHub Actions)
+  settle every published day ──> ledger.csv (append only)
+  load PSE data known at the decision
   forecast prices of D (quantile gradient boosting)
   optimise the schedule of D (MILP)
   commit plans/YYYY/D.json to the track-record branch   ── before 12:00, gate closure ──
   rebuild the website
+D-1, ~13:30-14:45    PSE publishes the SDAC prices of D
+next run             settle D (ledger row)
 ```
 
 1. **Morning of D-1.** A scheduled workflow loads the PSE data known at the decision, fits the forecast models on
    the past year, predicts the price of every quarter-hour of D (median and 10-90 % range), optimises the battery
    schedule on the median and commits the plan, with its inputs, to the `track-record` branch. A plan is never
-   replaced, and after 12:00 no plan is made. A retry runs two hours later and does nothing if the plan exists.
+   replaced, and after 12:00 no plan is made. The workflow is scheduled five times between 07:10 and 10:40 CET
+   (08:10 and 11:40 CEST): the first run that starts before the gate makes the plan, later runs find it and only
+   settle and redeploy. The inputs are cut at fixed times, so the plan does not depend on which run makes it.
 2. **Settlement.** Once the SDAC prices of D are published (early afternoon of D-1), the next run settles the plan on
    them, together with three benchmarks for the same day, and appends one row to `ledger.csv`. Rows are never
    rewritten, also when the code changes later; a day without a plan counts as no trade.
+   **Days without a plan.** GitHub starts scheduled runs late when it is busy, usually by 30-60 minutes. On 30.10.2026
+   the first run started at 14:34 Polish time, after the gate, so 31.10.2026 has no plan; until then the workflow had
+   two attempts (07:40 and 09:40 CET), now five. Such a day stays in the ledger as `no_plan` with 0 PLN for the
+   forecast strategy, while the benchmarks are settled as usual, and the website lists it under the live record.
 3. **Website.** The page shows the open plan, the live track record from the first published plan on, and,
    clearly separated, the backtest.
 
 ### What is known at the decision
 
-The plan for delivery day D is made on D-1 at about 10:00 Polish time. Publication times were read from the
-`publication_ts` field of the [PSE reports API](https://api.raporty.pse.pl) in October 2026.
+The forecast for delivery day D uses only what is published by about 07:00 Polish time on D-1 (`DECISION_LOCAL` in
+`config.py`; in a check on 31.10.2026 system quarter-hours appeared about 40 minutes after their end). The plan is
+issued by the first scheduled run after that which starts before the 12:00 gate; plans made by the earlier version of
+the code record a nominal `decision_local` of 10:00 instead, with the same inputs. Publication times were read
+from the `publication_ts` field of the [PSE reports API](https://api.raporty.pse.pl) in October 2026.
 
 | Data (PSE report) | Published | Use at the decision for D |
 |---|---|---|
@@ -241,11 +253,12 @@ src/bess_paper/
   cli.py           fetch | backtest | daily | site | figures
 ```
 
-**Daily run and website.** [`daily.yml`](.github/workflows/daily.yml) runs at 06:40 and 08:40 UTC (07:40 and
-09:40 CET, 08:40 and 10:40 CEST), always before the gate. It is **off by default**: scheduled runs only act when
-the repository variable `DASHBOARD_SCHEDULE` is `on`, and Settings > Pages > Source must be "GitHub Actions". The
-live track record begins with the first plan of the first such run. `docs/` holds a committed backtest-only
-snapshot of the page, which Pages can serve before that (Deploy from a branch, `main`, `/docs`).
+**Daily run and website.** [`daily.yml`](.github/workflows/daily.yml) is scheduled at 06:10, 06:40, 07:40, 08:40
+and 09:40 UTC (07:10-10:40 CET, 08:10-11:40 CEST), so that a run delayed by GitHub still starts before the gate; a
+run that starts after the gate settles and redeploys but makes no plan. It is **off by default**: scheduled runs only
+act when the repository variable `DASHBOARD_SCHEDULE` is `on`, and Settings > Pages > Source must be "GitHub
+Actions". The live track record begins with the first plan of the first such run. `docs/` holds a committed
+backtest-only snapshot of the page, which Pages can serve before that (Deploy from a branch, `main`, `/docs`).
 
 ## Data source and terms of use
 

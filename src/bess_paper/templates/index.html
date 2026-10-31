@@ -127,6 +127,7 @@ footer a { color: inherit; }
   <h2>Live track record</h2>
   <div class="sub" id="live-sub"></div>
   <div class="tiles" id="live-tiles"></div>
+  <div class="note-box" id="live-noplan" style="margin-top:12px" hidden></div>
   <div id="live-body">
     <div class="card" style="margin-top:12px"><h3>Cumulative P&amp;L since the first published plan, PLN</h3><div class="legend" id="leg-live-cum"></div><div class="chart" id="live-cum"></div></div>
     <div class="grid2" style="margin-top:12px">
@@ -156,9 +157,11 @@ footer a { color: inherit; }
 
 <section id="asof">
   <h2>What is known at the decision</h2>
-  <div class="sub">The plan for delivery day D is made on D-1 at about 10:00 Polish time. Only information published by
-  then may enter the forecast. Publication times below were read from the <code>publication_ts</code> field of the PSE
-  reports API in October 2026.</div>
+  <div class="sub">The forecast for delivery day D uses only information published by about 07:00 Polish time on D-1.
+  The plan is issued by the first scheduled run that starts between then and the 12:00 gate (five attempts between
+  07:10 and 10:40 CET, 08:10 and 11:40 CEST); a later run does not see more, because the inputs are cut at fixed
+  times. Publication times below were read from the <code>publication_ts</code> field of the PSE reports API in October
+  2026.</div>
   <div class="card scroll">
     <table class="avail">
       <thead><tr><th>Data (PSE report)</th><th>Published</th><th>Use at the decision for D</th></tr></thead>
@@ -390,6 +393,9 @@ function liveSection() {
   const n = G.date.length; const sum = (k) => G[k].reduce((a, b) => a + (b || 0), 0);
   const traded = G.status.filter((s) => s === "traded").length;
   $("live-sub").textContent = `${n} settled delivery day${n === 1 ? "" : "s"} from ${dayLabel(G.date[0])} to ${dayLabel(G.date[n - 1])}; ${traded} with a published plan, ${n - traded} without (counted as no trade). Every row was written once, after its prices were published.`;
+  const missed = G.date.filter((d, i) => G.status[i] !== "traded");
+  $("live-noplan").hidden = !missed.length;
+  $("live-noplan").textContent = missed.length ? `No plan for ${missed.map(dayLabel).join(", ")}: no scheduled run on the day before started before the 12:00 gate, and after the gate no plan is made. GitHub Actions starts scheduled runs late when it is busy (on 30 October 2026 the first run started at 14:34 Polish time instead of 07:40). Such a day counts as 0 PLN for the forecast strategy while the benchmarks are settled as usual, so it lowers the record; it is not left out.` : "";
   const pf = sum("pnl_perfect");
   tiles.append(tile("Forecast + MILP", fmt(sum("pnl_model")), "PLN", `${pct(pf ? sum("pnl_model") / pf : null)} of perfect foresight (${fmt(pf)} PLN)`));
   tiles.append(tile("Yesterday's prices", fmt(sum("pnl_yesterday")), "PLN", `${pct(pf ? sum("pnl_yesterday") / pf : null)} of perfect foresight`));
