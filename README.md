@@ -235,7 +235,7 @@ pytest -q                                      # synthetic data, no network
 
 `daily --now 2026-10-27T09:30` replays a moment (Polish time) for testing: prices of day X count as published
 from 15:00 on X-1 and system data from the end of each hour. The package depends on [pse-opendata](https://github.com/kwwaleszczynski-del/pse-opendata), installed
-from GitHub at a fixed commit.
+from PyPI (`pse-opendata>=0.2,<0.3`).
 
 ```
 src/bess_paper/

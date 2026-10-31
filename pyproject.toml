@@ -17,7 +17,7 @@ dependencies = [
     "scikit-learn>=1.4",
     "matplotlib>=3.8",
     "requests>=2.31",
-    "pse-opendata @ git+https://github.com/kwwaleszczynski-del/pse-opendata@8b01ec882b6f3af9c9ea91308293dda64108d705",
+    "pse-opendata>=0.2,<0.3",
 ]
 
 [project.optional-dependencies]
