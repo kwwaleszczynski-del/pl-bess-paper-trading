@@ -371,10 +371,10 @@ function dayCharts(P, priceId, netId, socId, legPrice, legNet, perfectNet) {
   const nitems = [["Sell (discharge)", css("--pos")], ["Buy (charge)", css("--neg")]];
   if (perfectNet) { net.push({x, y: perfectNet, mode: "lines", line: {width: 1.5, color: css("--ref"), dash: "dot", shape: "hv"}, name: "Perfect foresight", hovertemplate: "%{y:.2f} MW perfect foresight<extra></extra>"}); nitems.push(["Perfect-foresight schedule", css("--ref"), "dash"]); }
   legend(legNet, nitems);
-  Plotly.react(netId, net, baseLayout({bargap: 0.1, margin: {l: 56, r: 12, t: 4, b: 28}, yaxis: Object.assign(baseLayout().yaxis, {range: [-1.15, 1.15], zeroline: true, zerolinecolor: css("--axis")})}), CFG);
+  Plotly.react(netId, net, baseLayout({bargap: 0.1, margin: {l: 56, r: 12, t: 4, b: 36}, yaxis: Object.assign(baseLayout().yaxis, {range: [-1.15, 1.15], zeroline: true, zerolinecolor: css("--axis")})}), CFG);
   if (socId && P.soc) {
     Plotly.react(socId, [{x, y: P.soc, mode: "lines", line: {width: 2, color: css("--ink-2")}, name: "SoC", hovertemplate: "<b>%{y:.2f} MWh</b><extra></extra>"}],
-      baseLayout({margin: {l: 56, r: 12, t: 4, b: 28}, yaxis: Object.assign(baseLayout().yaxis, {range: [0, D.battery.energy_mwh]})}), CFG);
+      baseLayout({margin: {l: 56, r: 12, t: 4, b: 36}, yaxis: Object.assign(baseLayout().yaxis, {range: [0, D.battery.energy_mwh]})}), CFG);
   }
 }
 
