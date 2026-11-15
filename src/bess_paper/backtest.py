@@ -178,3 +178,48 @@ def summary(daily: pd.DataFrame, battery: BatteryParams = BATTERY) -> dict:
         if k in daily:
             out[k] = float(daily[k].mean())
     return out
+
+
+def comparisons(daily: pd.DataFrame, n_boot: int = 5000, seed: int = 0) -> dict:
+    """Paired comparisons of the forecast strategy with each benchmark, and the capture of recent months.
+
+    Differences are model minus benchmark in PLN per MW and year; the 95 % interval resamples whole weeks (Monday to
+    Sunday) with replacement, which keeps the day-to-day dependence within a week. Months count as full only when the
+    backtest covers every day of them.
+    """
+    days = pd.to_datetime(pd.Series(daily.index, index=daily.index))
+    week = days.dt.to_period("W").to_numpy()
+    month = days.dt.to_period("M")
+    per_month = daily.groupby(month.to_numpy()).size()
+    full = {m for m, n in per_month.items() if n == m.days_in_month}
+    rng = np.random.default_rng(seed)
+    scale = 365.0 / len(daily)
+    out: dict = {"days": int(len(daily)), "first_day": str(daily.index.min()), "last_day": str(daily.index.max()),
+                 "full_months": len(full), "partial_months": int(len(per_month) - len(full)), "model_vs": {}}
+    for b in ("yesterday", "week_mean", "last_week", "fixed"):
+        diff = daily["pnl_pln_model"] - daily[f"pnl_pln_{b}"]
+        weekly = diff.groupby(week).sum().to_numpy()
+        boot = rng.choice(weekly, size=(n_boot, len(weekly))).sum(axis=1) * scale
+        by_month = diff.groupby(month.to_numpy()).sum()
+        out["model_vs"][b] = {
+            "pln_per_mw_year": float(diff.sum() * scale),
+            "ci95_pln_per_mw_year": [float(np.percentile(boot, 2.5)), float(np.percentile(boot, 97.5))],
+            "share_days_model_better": float((diff > 0).mean()),
+            "full_months_model_ahead": int(sum(by_month[m] > 0 for m in full)),
+            "partial_months_model_ahead": int(sum(by_month[m] > 0 for m in by_month.index if m not in full)),
+        }
+    sums = daily.groupby(month.dt.strftime("%Y-%m").to_numpy())[
+        ["pnl_pln_model", "pnl_pln_yesterday", "pnl_pln_perfect"]].sum()
+    mae = daily.groupby(month.dt.strftime("%Y-%m").to_numpy())["mae_model"].mean()
+    out["months"] = [{"month": m, "days": int(per_month[pd.Period(m)]),
+                      "capture_model": float(r["pnl_pln_model"] / r["pnl_pln_perfect"]),
+                      "capture_yesterday": float(r["pnl_pln_yesterday"] / r["pnl_pln_perfect"]),
+                      "mae_model": float(mae[m])} for m, r in sums.iterrows()]
+    last3 = daily[month.isin(sorted(per_month.index)[-3:]).to_numpy()]
+    out["last_three_months"] = {
+        "first_day": str(last3.index.min()), "last_day": str(last3.index.max()), "days": int(len(last3)),
+        "capture_model": float(last3["pnl_pln_model"].sum() / last3["pnl_pln_perfect"].sum()),
+        "capture_yesterday": float(last3["pnl_pln_yesterday"].sum() / last3["pnl_pln_perfect"].sum()),
+        "mae_model": float(last3["mae_model"].mean()),
+    }
+    return out

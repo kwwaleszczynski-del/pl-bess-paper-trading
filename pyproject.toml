@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.15"]
 
 [project.scripts]
 bess-paper = "bess_paper.cli:main"
@@ -36,3 +36,15 @@ bess_paper = ["templates/*.html"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 filterwarnings = ["ignore:The 'generic' unit for NumPy timedelta:DeprecationWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bess_paper"]
+known-local-folder = ["conftest"]

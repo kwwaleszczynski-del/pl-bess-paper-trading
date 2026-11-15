@@ -18,7 +18,7 @@ def test_schedule_respects_energy_balance_and_limits(n, dt):
     check_plan(plan, dt)
     # state of charge follows the efficiency-weighted energy balance step by step
     soc = BATTERY.energy_mwh * BATTERY.soc_start
-    for c, d, s in zip(plan.charge_mw, plan.discharge_mw, plan.soc_mwh):
+    for c, d, s in zip(plan.charge_mw, plan.discharge_mw, plan.soc_mwh, strict=True):
         soc += BATTERY.eta * dt * c - dt * d / BATTERY.eta
         assert s == pytest.approx(soc, abs=1e-9)
     assert plan.soc_mwh[-1] == pytest.approx(BATTERY.energy_mwh * BATTERY.soc_start, abs=1e-6)

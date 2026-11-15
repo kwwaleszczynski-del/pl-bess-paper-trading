@@ -8,9 +8,12 @@ name: daily paper trading
 # Requires Settings > Pages > Source = "GitHub Actions". With Source = "Deploy from a branch" (main, /docs)
 # the committed backtest-only snapshot in docs/ is served instead.
 
-# GitHub starts scheduled runs late when it is busy (usually 30-60 minutes; on 30.10.2026 the 06:40 UTC run started
-# at 13:34 UTC, after the gate, so 31.10 has no plan). The plan is therefore attempted five times: the first run that
-# starts before the gate makes it, later runs find it and only settle and redeploy. Cron times are UTC.
+# GitHub starts scheduled runs late when it is busy. From 30.10.2026 on, every scheduled run of this workflow started
+# between 12:52 and 20:03 UTC, after the gate, so the schedule below no longer produces plans; it still settles and
+# redeploys. Plans come from workflow_dispatch: since 12.11.2026 a scheduled task on the owner's computer dispatches
+# this workflow several times each morning, but only while that computer is on. Each plan records what triggered it
+# and the link of its run. The first run that finishes before the gate makes the plan; later runs find it and only
+# settle and redeploy. Cron times are UTC.
 on:
   schedule:
     - cron: "10 6 * * *"    # 07:10 CET / 08:10 CEST; system data up to 06:00 are published by then
@@ -69,12 +72,14 @@ jobs:
           path: data
           key: pse-data-${{ github.run_id }}
 
-      # the plan must be public before the gate closure; a failed push fails the run
+      # the plan must be public before the gate closure: a new plan whose gate has closed is removed before the push,
+      # and a failed push fails the run
       - name: Push the track record
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           [ -f archive/README.md ] || exit 0
+          python -m bess_paper prepush --archive-dir archive
           cd archive
           # before the first plan the checkout above fails and may leave an empty repository behind
           [ -d .git ] || git init -b track-record

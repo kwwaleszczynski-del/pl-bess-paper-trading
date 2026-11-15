@@ -1,14 +1,26 @@
 """Live paper trading: gate closure, as-of inputs, plan archive and the append-only ledger."""
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from bess_paper.config import FUND_CUTOFF_LOCAL
-from bess_paper.live import (LateError, append_ledger, gate_closure, load_plan, local_time, make_plan, read_ledger,
-                             settle_pending, write_plan)
+from bess_paper.live import (
+    ARCHIVE_README,
+    LateError,
+    append_ledger,
+    ensure_readme,
+    gate_closure,
+    live_summary,
+    load_plan,
+    local_time,
+    make_plan,
+    read_ledger,
+    settle_pending,
+    write_plan,
+)
 from bess_paper.optimizer import Plan, check_plan, settle, soc_path
 from bess_paper.strategies import fixed_plan, plan_day
 
@@ -36,8 +48,8 @@ def morning(day: date, hour: int = 9) -> datetime:
 
 
 def test_gate_closure_is_noon_polish_time_on_the_day_before():
-    assert gate_closure(date(2026, 1, 21)) == datetime(2026, 1, 20, 11, 0, tzinfo=timezone.utc)   # CET
-    assert gate_closure(date(2026, 7, 21)) == datetime(2026, 7, 20, 10, 0, tzinfo=timezone.utc)   # CEST
+    assert gate_closure(date(2026, 1, 21)) == datetime(2026, 1, 20, 11, 0, tzinfo=UTC)   # CET
+    assert gate_closure(date(2026, 7, 21)) == datetime(2026, 7, 20, 10, 0, tzinfo=UTC)   # CEST
 
 
 def test_no_plan_after_the_gate_closure(market, fast_model):
@@ -61,7 +73,7 @@ def test_plan_ignores_data_after_the_decision(market, fast_model):
     # system data between 06:00 and the run, which a late morning run would see, must not matter
     s2 = s.copy()
     cutoff = pd.Timestamp(local_time(TODAY, FUND_CUTOFF_LOCAL))
-    s2.loc[s2.index >= cutoff, "wind"] = 1e6
+    s2.loc[s2.index >= cutoff, :] = 1e6
     plan_b = make_plan(p, s2, TODAY + timedelta(days=1), now, fast_model)
     assert plan_a["intervals"] == plan_b["intervals"]
 
@@ -154,3 +166,26 @@ def test_plan_file_is_plain_json(tmp_path, market, fast_model):
     body = json.loads((tmp_path / "plans" / "2026" / f"{TODAY.isoformat()}.json").read_text(encoding="utf-8"))
     assert {"delivery_date", "issued_utc", "gate_closure_utc", "code_version", "intervals"} <= set(body)
     assert "_features" not in body
+
+
+def test_archive_readme_is_written_and_brought_up_to_date(tmp_path):
+    ensure_readme(tmp_path)
+    assert (tmp_path / "README.md").read_text(encoding="utf-8") == ARCHIVE_README
+    (tmp_path / "README.md").write_text("old text", encoding="utf-8")
+    ensure_readme(tmp_path)
+    assert (tmp_path / "README.md").read_text(encoding="utf-8") == ARCHIVE_README
+    assert "prove nothing on their own" in ARCHIVE_README
+
+
+def test_live_summary_counts_days_from_the_ledger():
+    ledger = pd.DataFrame({"date": ["2026-01-01", "2026-01-02", "2026-01-03"],
+                           "status": ["traded", "no_plan", "replay"],
+                           "pnl_model": [100.0, 0.0, 0.0], "pnl_yesterday": [50.0, 80.0, 10.0],
+                           "pnl_fixed": [20.0, 30.0, 5.0], "pnl_perfect": [200.0, 200.0, 100.0],
+                           "mae_model": [40.0, None, None], "mae_yesterday": [60.0, 70.0, 50.0],
+                           "cover80": [0.5, None, None]})
+    s = live_summary(ledger)
+    assert (s["days"], s["traded"], s["no_plan"], s["replay"]) == (3, 1, 1, 1)
+    assert s["all_days"]["share_model"] == pytest.approx(100 / 500)
+    assert s["traded_days"]["share_yesterday"] == pytest.approx(50 / 200)
+    assert s["badge"] == "1 of 3 days traded, 20.0 % of perfect foresight"

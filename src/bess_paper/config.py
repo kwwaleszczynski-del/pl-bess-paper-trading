@@ -18,7 +18,7 @@ WARMUP_START = date(2023, 6, 1)     # legacy hourly history, used only to train 
 
 GATE_LOCAL = time(12, 0)            # SDAC order book gate closure for delivery day D, on D-1 (Polish time)
 DECISION_LOCAL = time(7, 0)         # every input of the plan for D is published by about this time on D-1; the plan
-                                    # is issued by the first scheduled run after it that starts before the gate
+                                    # is issued by the first run after it that finishes before the gate
 FUND_CUTOFF_LOCAL = time(6, 0)      # system data of D-1 (wind, PV, demand) are used up to this local time only
 
 PRICE_REPORT = "csdac-pln"          # settlement price: SDAC clearing price of the Polish bidding zone
@@ -34,7 +34,7 @@ class BatteryParams:
     soc_min: float = 0.05           # fraction of energy_mwh
     soc_max: float = 0.95
     soc_start: float = 0.5          # also required at the end of each day, so days are independent
-    max_cycles_per_day: float = 1.5
+    max_cycles_per_day: float = 1.5  # energy delivered to the grid per day / usable energy (about 1.6 at the cells)
     degradation_cost: float = 30.0  # PLN per MWh discharged, in the objective and in the reported P&L
 
     @property
@@ -55,7 +55,7 @@ class ModelParams:
     """Walk-forward gradient boosting. Chosen before the backtest was run and not tuned on it."""
 
     train_days: int = 365           # rolling training window (delivery days)
-    retrain_every: int = 7          # backtest: refit once a week (the live run refits every day)
+    retrain_every: int = 7          # backtest: refit once a week (the live run refits for every plan)
     quantiles: tuple[float, ...] = (0.1, 0.5, 0.9)
     max_iter: int = 300
     learning_rate: float = 0.05

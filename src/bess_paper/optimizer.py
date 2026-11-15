@@ -11,6 +11,11 @@ subject to
     0 <= c_t <= P * u_t,  0 <= d_t <= P * (1 - u_t),  u_t binary   (no simultaneous charge and discharge)
     sum_t dt * d_t <= max_cycles * usable_energy                   (throughput cap)
 
+The throughput cap counts the energy delivered to the grid: 1.5 x 1.8 MWh = 2.7 MWh a day. Counted at the cells
+(2.7 / eta = 2.9 MWh) this is about 1.6 full cycles of the usable energy. ``cycles`` in the results uses the same
+grid-side definition. It is kept as it is so that live plans, backtest and the portfolio's earlier projects stay
+comparable.
+
 The prices are a forecast when the plan is made and the published clearing prices when it is settled; with the
 actual prices the plan is the perfect-foresight upper bound.
 
@@ -110,7 +115,7 @@ def settle(plan: Plan, prices, dt_hours: float = 0.25, params: BatteryParams = B
         "gross_pln": gross,
         "bought_mwh": bought,
         "sold_mwh": sold,
-        "cycles": sold / params.usable_mwh if params.usable_mwh else 0.0,
+        "cycles": sold / params.usable_mwh if params.usable_mwh else 0.0,    # grid side, see the module docstring
     }
 
 

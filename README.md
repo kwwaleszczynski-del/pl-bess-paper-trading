@@ -1,14 +1,17 @@
 # pl-bess-paper-trading
 
 ![tests](https://github.com/kwwaleszczynski-del/pl-bess-paper-trading/actions/workflows/ci.yml/badge.svg)
+![live record](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fkwwaleszczynski-del.github.io%2Fpl-bess-paper-trading%2Flive_summary.json&query=%24.badge&label=live%20record&color=2a78d6)
 
 **Website: https://kwwaleszczynski-del.github.io/pl-bess-paper-trading/** ·
 **Archive of plans: [`track-record` branch](https://github.com/kwwaleszczynski-del/pl-bess-paper-trading/tree/track-record)**
 
-A 1 MW / 2 MWh battery that trades the Polish day-ahead market **on paper**, every day. Each morning it forecasts
-tomorrow's prices from the data published by then, plans when to charge and discharge, and commits the plan before
-the 12:00 gate closure of the day-ahead auction (SDAC). The next day the plan is settled on the published clearing
-prices and appended to a track record that is never recomputed, like the performance page of a fund.
+A 1 MW / 2 MWh battery that trades the Polish day-ahead market **on paper**. On a morning when the daily run starts
+in time, it forecasts tomorrow's prices from the data published by then, plans when to charge and discharge, and
+commits the plan before the 12:00 gate closure of the day-ahead auction (SDAC). Once the clearing prices are published
+the plan is settled on them and appended to a track record that is never recomputed, like the performance page of a
+fund. A morning without a run in time leaves a day without a plan, which stays in the record as no trade; so far
+that has been most days (see below).
 
 > **Paper trading only.** No bids or offers are submitted to any market or exchange: a plan is a file in this
 > repository, and its result is computed from public prices. This is a research and portfolio project, not
@@ -21,13 +24,51 @@ and publishes the answer day by day.
 
 ## Results
 
-**Live track record.** It starts with the first plan the daily workflow publishes and is shown on the
-[website](https://kwwaleszczynski-del.github.io/pl-bess-paper-trading/) and in
-[`ledger.csv`](https://github.com/kwwaleszczynski-del/pl-bess-paper-trading/blob/track-record/ledger.csv) of the
-`track-record` branch. It is never mixed with the backtest below.
+### Live track record
 
-**Backtest** (simulated, walk-forward with as-of inputs, 14.06.2024 to 26.10.2026, 865 delivery days; P&L in PLN
-for 1 MW / 2 MWh, net of the degradation cost):
+Started on 28.10.2026; shown on the [website](https://kwwaleszczynski-del.github.io/pl-bess-paper-trading/) and in
+[`ledger.csv`](https://github.com/kwwaleszczynski-del/pl-bess-paper-trading/blob/track-record/ledger.csv) of the
+`track-record` branch, never mixed with the backtest. The badge above follows the ledger every day; the block below
+is generated from it (`python -m bess_paper live-summary --update-readme README.md`) and is current as of its last
+commit.
+
+<!-- live-summary:start -->
+Ledger from 28.10.2026 to 16.11.2026: 20 settled delivery days, 6 with a plan published before the gate, 14 without (0 PLN for the forecast strategy).
+P&L in PLN, in brackets the share of perfect foresight on the same days.
+
+| Days | n | Forecast + MILP | Yesterday's prices | Fixed hours | Perfect foresight |
+|---|---:|---:|---:|---:|---:|
+| all settled days | 20 | 5,077 (11.7 %) | 19,742 (45.4 %) | 4,530 (10.4 %) | 43,448 |
+| days with a plan | 6 | 5,077 (52.4 %) | 3,863 (39.9 %) | 3,272 (33.8 %) | 9,691 |
+
+On the days with a plan the forecast had a mean absolute error of 312 PLN/MWh (yesterday's prices 302) and its 10-90 % range contained 56 % of prices. 6 days are far too few to compare strategies.
+<!-- live-summary:end -->
+
+**Where the plans came from.** From 30.10.2026 on, GitHub started every scheduled run of the workflow between 12:52
+and 20:03 UTC, after the gate, so the schedule alone has produced no plan since the one for 30.10. The plans for 28.10,
+29.10 and 30.10 came from the GitHub schedule, the plan for 4.11 from a one-off dispatch, and the plans for 14.11 and
+15.11 from a scheduled task on the owner's computer that has dispatched the workflow several times each morning since
+12.11.2026 (all from the Actions log). That task runs only while the computer is on: on 15.11 its dispatches started
+at 12:43, after the gate, so 16.11 has no plan. **The operator therefore decides, in effect, which mornings trade.**
+Days without a plan count as 0 PLN for the forecast strategy while the benchmarks are settled as usual, so the record
+penalises them rather than leaving them out. Plans record what triggered their run from 16.11.2026 on.
+
+**Shadow run of the live days** (`python -m bess_paper shadow`, results in
+[`results/shadow_live.csv`](results/shadow_live.csv); simulated, not part of the live record). Re-planning the 20
+ledger days afterwards with today's PSE data and the live procedure (daily refit) reproduces all six live plans
+exactly: by 15.11.2026 PSE's corrections had changed the system inputs of those mornings by at most 0.8 MW (night
+demand) and no plan. With the backtest's weekly refit the schedules differ by 0.12 MW per quarter-hour on average and
+earn 5,545 instead of 5,077 PLN on the six days with a plan (23,027 instead of 20,763 PLN on all 20 days); with so few
+days this is noise, not evidence for either refit. Had every morning had a plan, the daily procedure would have earned
+20,763 PLN on the 20 days, 47.8 % of perfect foresight (yesterday's prices: 45.4 %).
+
+### Backtest
+
+Simulated, walk-forward with as-of inputs, 14.06.2024 to 26.10.2026, 865 delivery days; P&L in PLN for 1 MW / 2 MWh,
+net of the degradation cost. The headline share of perfect foresight (83 %) is the average of a calmer past: in
+August to October 2026 the model earned 80.5 % (yesterday's prices 68.6 %), in October 2026 alone (to the 26th) 69.0 %
+with a mean absolute error of 189 PLN/MWh. On the live days prices were higher and swung more (mean daily spread
+1,555 PLN/MWh against 1,030 in October 2026).
 
 ![cumulative P&L of the strategies in the backtest](docs/img/backtest_cumulative.png)
 
@@ -52,12 +93,14 @@ model has an MAE of 97.3 PLN/MWh and earns 86.3 % of perfect foresight; with 15-
 PLN/MWh and 79.9 %.
 
 - **The forecast pays.** The forecast strategy earns 83 % of the perfect-foresight upper bound and 39,000 PLN/MW/year
-  more than trading on yesterday's prices (95 % interval 34,000 to 44,000, bootstrap over weeks). It is ahead in
-  every one of the 29 months and on 72 % of the days.
+  more than trading on yesterday's prices (95 % interval 34,000 to 44,000, bootstrap over weeks). It is ahead in all
+  27 full calendar months, in both partial months (June 2024, October 2026) and on 72 % of the days. These
+  comparisons are computed by `python -m bess_paper stats` into
+  [`results/backtest_stats.json`](results/backtest_stats.json).
 - **A better forecast is not automatically more money.** The plain 7-day average earns as much as the model
-  (-1,600 PLN/MW/year for the model, 95 % interval -4,800 to +1,600) although its MAE is 19 % higher. The schedule
+  (-1,600 PLN/MW/year for the model, 95 % interval -5,000 to +1,600) although its MAE is 19 % higher. The schedule
   depends on how the quarter-hours of a day rank against each other, and the 7-day average ranks them almost as
-  well (0.819 vs 0.834) while being smoother. The live strategy keeps the model that was chosen before the backtest.
+  well (0.819 vs 0.834) while being smoother. The live strategy keeps the gradient boosting model.
 - **The quantile range is too narrow.** The 10-90 % range of the model contains 59 % of prices instead of 80 %.
 - **Fixed hours** earn 52 % of perfect foresight and lose money in December 2024 and from November 2025 to
   January 2026, when noon is no longer the cheapest time to buy.
@@ -77,7 +120,8 @@ into the morning and afternoon peaks, close to the perfect-foresight schedule (d
 
 ```
 D-1, ~07:00    inputs of the plan published (prices up to D-1, system data up to 06:00)
-D-1, first scheduled run that starts before 12:00 (attempts 07:10-10:40 CET, 08:10-11:40 CEST; GitHub Actions)
+D-1, first run of the workflow that finishes before 12:00 (GitHub Actions; started by GitHub's schedule or by a
+     dispatch, in practice the owner's scheduled task, see Results)
   settle every published day ──> ledger.csv (append only)
   load PSE data known at the decision
   forecast prices of D (quantile gradient boosting)
@@ -88,28 +132,36 @@ D-1, ~13:30-14:45    PSE publishes the SDAC prices of D
 next run             settle D (ledger row)
 ```
 
-1. **Morning of D-1.** A scheduled workflow loads the PSE data known at the decision, fits the forecast models on
+1. **Morning of D-1.** A run of the workflow loads the PSE data known at the decision, fits the forecast models on
    the past year, predicts the price of every quarter-hour of D (median and 10-90 % range), optimises the battery
    schedule on the median and commits the plan, with its inputs, to the `track-record` branch. A plan is never
-   replaced, and after 12:00 no plan is made. The workflow is scheduled five times between 07:10 and 10:40 CET
-   (08:10 and 11:40 CEST): the first run that starts before the gate makes the plan, later runs find it and only
-   settle and redeploy. The inputs are cut at fixed times, so the plan does not depend on which run makes it.
+   replaced. The gate is checked when the run starts, again when the plan is finished (that time is the plan's
+   `issued_utc`) and once more just before the push, which drops a plan whose gate has closed. The inputs are cut at
+   fixed times, so the plan does not depend on which run makes it, only whether one does in time.
 2. **Settlement.** Once the SDAC prices of D are published (early afternoon of D-1), the next run settles the plan on
    them, together with three benchmarks for the same day, and appends one row to `ledger.csv`. Rows are never
-   rewritten, also when the code changes later; a day without a plan counts as no trade.
-   **Days without a plan.** GitHub starts scheduled runs late when it is busy, usually by 30-60 minutes. On 30.10.2026
-   the first run started at 14:34 Polish time, after the gate, so 31.10.2026 has no plan; until then the workflow had
-   two attempts (07:40 and 09:40 CET), now five. Such a day stays in the ledger as `no_plan` with 0 PLN for the
-   forecast strategy, while the benchmarks are settled as usual, and the website lists it under the live record.
-3. **Website.** The page shows the open plan, the live track record from the first published plan on, and,
+   rewritten, also when the code changes later. A day without a plan stays in the ledger as `no_plan` with 0 PLN for
+   the forecast strategy, while the benchmarks are settled as usual; a plan written by `daily --now` (a replay for
+   testing) is settled as `replay`, also with 0 PLN.
+   **Days without a plan.** The workflow's own schedule (five times between 07:10 and 10:40 CET) has started hours
+   late since 30.10.2026; plans come from dispatches, see [Results](#live-track-record).
+3. **Evidence.** What shows when a plan was published is kept by GitHub: the Actions run that wrote it (each plan
+   from 16.11.2026 on records the run's link and what triggered it) and the push in the
+   [activity log](https://github.com/kwwaleszczynski-del/pl-bess-paper-trading/activity?ref=track-record). Commit
+   dates are set by the client and prove nothing on their own. What this proves: each plan was in the public
+   repository before the gate of its day and before PSE published the prices. What it does not prove: which mornings
+   were left without a run (the operator can dispatch or not), and the branch is not protected against force pushes,
+   which would however show in the activity log. On 15.11.2026 that log showed the branch creation and 23 pushes, all
+   by the Actions bot and none forced.
+4. **Website.** The page shows the open plan, the live track record from the first published plan on, and,
    clearly separated, the backtest.
 
 ### What is known at the decision
 
 The forecast for delivery day D uses only what is published by about 07:00 Polish time on D-1 (`DECISION_LOCAL` in
 `config.py`; in a check on 31.10.2026 system quarter-hours appeared about 40 minutes after their end). The plan is
-issued by the first scheduled run after that which starts before the 12:00 gate; plans made by the earlier version of
-the code record a nominal `decision_local` of 10:00 instead, with the same inputs. Publication times were read
+issued by the first run after that which finishes before the 12:00 gate; plans made by the earlier version of the code
+record a nominal `decision_local` of 10:00 instead, with the same inputs. Publication times were read
 from the `publication_ts` field of the [PSE reports API](https://api.raporty.pse.pl) in October 2026.
 
 | Data (PSE report) | Published | Use at the decision for D |
@@ -146,9 +198,10 @@ on 26 features: local time of day, weekday, public holidays of D and D-1, season
 the same local time and their 7-day mean, the shape of the price curve of D-1 (mean, minimum, maximum, standard
 deviation, night, midday and evening means, share of negative prices), the mean price of D-7, a flag for 15-minute
 products, the daily means of wind, PV and demand of D-2, and wind and demand of D-1 up to 06:00 (night mean and last
-hour). The models are trained on the 365 delivery days
-before D (prices of D-1 are known at the decision). The quantiles are sorted so that they never cross. The model
-settings were fixed before the backtest and were not tuned on it.
+hour). The models are trained on the 365 delivery days before D (prices of D-1 are known at the decision). The
+quantiles are sorted so that they never cross. The model settings were chosen when the project was set up and have
+not been changed since; that they were not tuned on the backtest cannot be checked from the repository, whose first
+commit already contains the backtest results.
 
 Benchmarks of the forecast: **yesterday's prices** (D-1 at the same local time), **last week's prices** (D-7) and
 the **7-day average** (D-1 to D-7).
@@ -171,6 +224,9 @@ e_t &= e_{t-1} + \eta\,\Delta t\,c_t - \frac{\Delta t\,d_t}{\eta}, \qquad e_0 = 
 
 with $`P = 1`$ MW, $`E = 2`$ MWh, one-way efficiency $`\eta = \sqrt{0.87}`$ (87 % round trip) and a degradation
 cost $`k = 30`$ PLN per MWh discharged, the same assumptions as the perfect-foresight projects of this portfolio.
+The last constraint caps the energy delivered to the grid at 2.7 MWh a day, 1.5 times the usable 1.8 MWh; counted at
+the cells (2.7 MWh divided by $`\eta`$) that is about 1.6 full cycles. "Cycles" in the tables use the grid-side
+definition. The cap is kept so that live plans, backtest and the earlier projects stay comparable.
 The plan is a fixed schedule (price-taking quantities), as if submitted to SDAC without price limits.
 
 **Settlement.** A plan $`(c_t, d_t)`$ is settled on the clearing prices $`p_t`$ of D:
@@ -193,20 +249,22 @@ the SDAC prices used here perfect foresight earns 327,663 PLN in 2025.
 
 **Backtest.** Walk-forward from 14.06.2024, the first day of the PSE reports API: every week a new set of models
 is fitted on the 365 delivery days before the week, and every day is forecast from its own as-of features. The
-features of day D are looked up by date arithmetic from D-1, D-2 and D-7 only; a test changes all data after the
-decision and checks that the features, the forecast and the plan stay the same.
+features of day D are looked up by date arithmetic from D-1, D-2 and D-7 only. Tests change all data after the
+decision (prices of D and later, system data after 06:00 on D-1) and check that the features, the backtest's forecast
+and plans and the live plan stay the same.
 
 **Where the backtest is not exactly as-of:**
 
 - PSE system data (`his-wlk-cal`): the API serves only the latest revision, so the backtest sees corrected values
   where the live run sees first estimates (a bulk republication of 2024-2025 took place on 18.01.2026). They enter
   only as daily and night means of wind, PV and demand.
-- The backtest refits the models weekly, the live run every day.
+- The backtest refits the models weekly, the live run each time it makes a plan.
 - Training data before 14.06.2024 come from the legacy PSE export: hourly RCE (the day-ahead market price before
   the balancing market reform of 14.06.2024) and hourly wind, PV and demand. They train the models of the first
   year of the backtest only.
-- The settings were fixed before the backtest, but the project was designed after the period it tests, so the
-  backtest is not a substitute for the live record.
+- The project was designed after the period it tests, so the backtest is not a substitute for the live record.
+- The shadow run above measures the first two points on the live days: so far the revisions changed no plan, the
+  weekly refit changed most.
 
 ## Limitations
 
@@ -228,13 +286,17 @@ python -m venv .venv
 python -m bess_paper fetch                     # PSE data from 1.06.2023 into data/ (legacy export: ~30 min once)
 python -m bess_paper backtest --offline --workers 4   # walk-forward backtest -> results/
 python -m bess_paper figures                   # README figures -> docs/img/
+python -m bess_paper stats                     # paired comparisons -> results/backtest_stats.json
 python -m bess_paper daily --archive-dir archive      # settle published days, plan tomorrow (before 12:00)
 python -m bess_paper site --archive-dir archive --out site
+python -m bess_paper live-summary --archive-dir archive --update-readme README.md
+python -m bess_paper shadow --archive-dir archive     # live days re-planned afterwards -> results/shadow_live.*
 pytest -q                                      # synthetic data, no network
 ```
 
 `daily --now 2026-10-27T09:30` replays a moment (Polish time) for testing: prices of day X count as published
-from 15:00 on X-1 and system data from the end of each hour. The package depends on [pse-opendata](https://github.com/kwwaleszczynski-del/pse-opendata), installed
+from 15:00 on X-1 and system data from the end of each hour. The plan is marked as a replay and never counts as a
+trade, and the option is refused inside GitHub Actions. The package depends on [pse-opendata](https://github.com/kwwaleszczynski-del/pse-opendata), installed
 from PyPI (`pse-opendata>=0.2,<0.3`).
 
 ```
@@ -246,19 +308,21 @@ src/bess_paper/
   forecast.py      quantile gradient boosting and benchmark forecasts
   optimizer.py     MILP schedule, state of charge, settlement, feasibility check
   strategies.py    forecast, yesterday, fixed hours, perfect foresight
-  backtest.py      walk-forward backtest and summary
-  live.py          plan before the gate, archive, settlement, append-only ledger
+  backtest.py      walk-forward backtest, summary and paired comparisons
+  live.py          plan before the gate, archive, settlement, append-only ledger, live summary
+  shadow.py        live days re-planned with today's data (daily and weekly refit)
   site.py          static website (Plotly.js), light and dark theme
   figures.py       README figures (matplotlib)
-  cli.py           fetch | backtest | daily | site | figures
+  cli.py           fetch | backtest | stats | daily | prepush | site | live-summary | shadow | figures
 ```
 
 **Daily run and website.** [`daily.yml`](.github/workflows/daily.yml) is scheduled at 06:10, 06:40, 07:40, 08:40
-and 09:40 UTC (07:10-10:40 CET, 08:10-11:40 CEST), so that a run delayed by GitHub still starts before the gate; a
-run that starts after the gate settles and redeploys but makes no plan. It is **off by default**: scheduled runs only
-act when the repository variable `DASHBOARD_SCHEDULE` is `on`, and Settings > Pages > Source must be "GitHub
-Actions". The live track record begins with the first plan of the first such run. `docs/` holds a committed
-backtest-only snapshot of the page, which Pages can serve before that (Deploy from a branch, `main`, `/docs`).
+and 09:40 UTC (07:10-10:40 CET, 08:10-11:40 CEST) and can be dispatched. Since 30.10.2026 the scheduled runs have
+started hours late, after the gate; they still settle and redeploy, and the plans come from dispatches (see
+[Results](#live-track-record)). A run that finishes after the gate makes no plan. Scheduled runs only act when the
+repository variable `DASHBOARD_SCHEDULE` is `on`, and Settings > Pages > Source must be "GitHub Actions". `docs/` holds
+a committed backtest-only snapshot of the page, which Pages can serve without the workflow (Deploy from a branch,
+`main`, `/docs`).
 
 ## Data source and terms of use
 

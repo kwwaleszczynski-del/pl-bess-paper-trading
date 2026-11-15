@@ -7,7 +7,7 @@ Usage:
 from __future__ import annotations
 
 from datetime import date, timedelta
-from functools import lru_cache
+from functools import cache
 
 
 def easter(year: int) -> date:
@@ -25,7 +25,7 @@ def easter(year: int) -> date:
     return date(year, month, day)
 
 
-@lru_cache(maxsize=None)
+@cache
 def holidays(year: int) -> frozenset[date]:
     e = easter(year)
     days = {

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Battery Paper Trading PL</title>
-<meta name="description" content="A 1 MW / 2 MWh battery that trades the Polish day-ahead market on paper every day: price forecast before gate closure, optimised schedule, next-day settlement and a live track record that is never recomputed.">
+<meta name="description" content="A 1 MW / 2 MWh battery that trades the Polish day-ahead market on paper: price forecast before gate closure, optimised schedule, next-day settlement and a live track record that is never recomputed.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='8' width='18' height='18' rx='3' fill='none' stroke='%232a78d6' stroke-width='2.5'/%3E%3Crect x='12' y='4' width='6' height='4' rx='1' fill='%232a78d6'/%3E%3Cpath d='M10 21l4-5 3 3 4-6' stroke='%23eb6834' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
 :root {
@@ -98,9 +98,10 @@ footer a { color: inherit; }
   <div class="toprow">
     <div>
       <h1>Battery paper trading on the Polish day-ahead market</h1>
-      <p class="lede">Every morning a 1&nbsp;MW / 2&nbsp;MWh battery forecasts tomorrow's day-ahead prices, plans when to
-      charge and discharge, and publishes the plan before the 12:00 gate closure. The next day the plan is settled on
-      the published SDAC clearing prices and added to a track record that is never recomputed.</p>
+      <p class="lede">On a morning when the daily run starts in time, a 1&nbsp;MW / 2&nbsp;MWh battery forecasts
+      tomorrow's day-ahead prices, plans when to charge and discharge, and publishes the plan before the 12:00 gate
+      closure. Once the SDAC clearing prices are published the plan is settled on them and added to a track record that
+      is never recomputed; a morning without a plan stays in it as a day without a trade.</p>
     </div>
     <button class="toggle" id="theme" type="button" aria-label="Toggle dark mode">Dark mode</button>
   </div>
@@ -158,9 +159,8 @@ footer a { color: inherit; }
 <section id="asof">
   <h2>What is known at the decision</h2>
   <div class="sub">The forecast for delivery day D uses only information published by about 07:00 Polish time on D-1.
-  The plan is issued by the first scheduled run that starts between then and the 12:00 gate (five attempts between
-  07:10 and 10:40 CET, 08:10 and 11:40 CEST); a later run does not see more, because the inputs are cut at fixed
-  times. Publication times below were read from the <code>publication_ts</code> field of the PSE reports API in October
+  The plan is issued by the first run of the workflow that finishes between then and the 12:00 gate; a later run does
+  not see more, because the inputs are cut at fixed times. Publication times below were read from the <code>publication_ts</code> field of the PSE reports API in October
   2026.</div>
   <div class="card scroll">
     <table class="avail">
@@ -192,8 +192,8 @@ footer a { color: inherit; }
     <h3>Schedule</h3>
     <p>A mixed-integer linear program (HiGHS) maximises the energy revenue at the median forecast minus a
     degradation cost of 30 PLN per MWh discharged, with 87 % round-trip efficiency, state of charge between 5 % and
-    95 %, 50 % at the start and the end of every day, no simultaneous charge and discharge and at most 1.5 cycles per
-    day. The plan is a fixed schedule (price-taking quantities), as if submitted to SDAC without price limits.</p>
+    95 %, 50 % at the start and the end of every day, no simultaneous charge and discharge and at most 2.7 MWh delivered
+    to the grid per day (1.5 times the usable energy; about 1.6 full cycles counted at the cells). The plan is a fixed schedule (price-taking quantities), as if submitted to SDAC without price limits.</p>
     <h3>Settlement and benchmarks</h3>
     <p>Every strategy is settled on the SDAC clearing price of the Polish zone with the same battery and costs:</p>
     <ul>
@@ -207,7 +207,13 @@ footer a { color: inherit; }
     <h3>Live record</h3>
     <ul>
       <li>The plan for D is written to the public <code>track-record</code> branch before 12:00 on D-1, with the model
-      inputs and the PSE 5-day plan as seen at that moment. A plan is never replaced; after the gate no plan is made.</li>
+      inputs and the PSE 5-day plan as seen at that moment. A plan is never replaced; a plan finished after the gate is
+      not written or pushed.</li>
+      <li>Since 30.10.2026 GitHub has started the workflow's scheduled runs hours late, after the gate. Plans come from
+      dispatches, mostly by a scheduled task on the owner's computer, so the operator decides in effect which mornings
+      trade. Each plan from 16.11.2026 on records what triggered its run and the run's link.</li>
+      <li>Evidence of the publication time is the Actions run and the push in the repository's activity log, both kept by
+      GitHub; commit dates are set by the client and prove nothing on their own.</li>
       <li>Each day is settled once, when its prices are published, and appended to <code>ledger.csv</code>. Rows are
       never rewritten, also when the code changes later. A day without a plan counts as no trade (0 PLN).</li>
       <li>The record starts on the first published plan; the backtest is shown separately and never merged into it.</li>
@@ -216,11 +222,11 @@ footer a { color: inherit; }
     <ul>
       <li>PSE system data: the API serves only the latest revision, so the backtest sees corrected values where the
       live run sees first estimates. They enter only as day and night averages.</li>
-      <li>Models are refitted weekly in the backtest and daily in the live run.</li>
+      <li>Models are refitted weekly in the backtest and for every plan in the live run.</li>
       <li>The first backtest models (June 2024 to June 2025) are partly trained on the hourly RCE of the legacy PSE export,
       the price of the day-ahead market before the balancing market reform of 14.06.2024.</li>
-      <li>The model settings were fixed before the backtest and not tuned on it, but this project was designed after
-      the period it tests.</li>
+      <li>The model settings have not changed since the project was set up, but this project was designed after the
+      period it tests, and the repository cannot show that they were not tuned on it.</li>
     </ul>
     <h3>Limitations</h3>
     <ul>
@@ -394,10 +400,12 @@ function liveSection() {
   $("live-body").hidden = false;
   const n = G.date.length; const sum = (k) => G[k].reduce((a, b) => a + (b || 0), 0);
   const traded = G.status.filter((s) => s === "traded").length;
-  $("live-sub").textContent = `${n} settled delivery day${n === 1 ? "" : "s"} from ${dayLabel(G.date[0])} to ${dayLabel(G.date[n - 1])}; ${traded} with a published plan, ${n - traded} without (counted as no trade). Every row was written once, after its prices were published.`;
+  const T = (L.summary || {}).traded_days;
+  const onTraded = T && T.days ? ` On the ${T.days} day${T.days === 1 ? "" : "s"} with a plan the forecast strategy earned ${pct(T.share_model, 1)} of perfect foresight, yesterday's prices ${pct(T.share_yesterday, 1)}, fixed hours ${pct(T.share_fixed, 1)}.` : "";
+  $("live-sub").textContent = `${n} settled delivery day${n === 1 ? "" : "s"} from ${dayLabel(G.date[0])} to ${dayLabel(G.date[n - 1])}; ${traded} with a published plan, ${n - traded} without (counted as no trade). Every row was written once, after its prices were published.${onTraded}`;
   const missed = G.date.filter((d, i) => G.status[i] !== "traded");
   $("live-noplan").hidden = !missed.length;
-  $("live-noplan").textContent = missed.length ? `No plan for ${missed.map(dayLabel).join(", ")}: no scheduled run on the day before started before the 12:00 gate, and after the gate no plan is made. GitHub Actions starts scheduled runs late when it is busy (on 30 October 2026 the first run started at 14:34 Polish time instead of 07:40). Such a day counts as 0 PLN for the forecast strategy while the benchmarks are settled as usual, so it lowers the record; it is not left out.` : "";
+  $("live-noplan").textContent = missed.length ? `No plan for ${missed.map(dayLabel).join(", ")}: no run of the workflow finished before the 12:00 gate on the day before. Since 30 October 2026 GitHub has started the scheduled runs hours late, so plans come from dispatches, mostly by a scheduled task on the owner's computer that runs only while it is on; the operator therefore decides in effect which mornings trade. Such a day counts as 0 PLN for the forecast strategy while the benchmarks are settled as usual, so it lowers the record; it is not left out.` : "";
   const pf = sum("pnl_perfect");
   tiles.append(tile("Forecast + MILP", fmt(sum("pnl_model")), "PLN", `${pct(pf ? sum("pnl_model") / pf : null)} of perfect foresight (${fmt(pf)} PLN)`));
   tiles.append(tile("Yesterday's prices", fmt(sum("pnl_yesterday")), "PLN", `${pct(pf ? sum("pnl_yesterday") / pf : null)} of perfect foresight`));

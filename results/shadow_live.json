@@ -1,0 +1,34 @@
+{
+ "days": 20,
+ "traded": 6,
+ "first_day": "2026-10-28",
+ "last_day": "2026-11-16",
+ "traded_days": {
+  "pnl_live": 5076.7685,
+  "pnl_shadow_daily": 5076.7684676525,
+  "pnl_shadow_weekly": 5544.745046042638,
+  "pnl_perfect": 9691.298400000001
+ },
+ "all_days": {
+  "pnl_shadow_daily": 20763.3393930225,
+  "pnl_shadow_weekly": 23026.62973232019,
+  "pnl_perfect": 43448.0805
+ },
+ "mae_traded": {
+  "mae_live": 312.327,
+  "mae_shadow_daily": 312.32701388888887,
+  "mae_shadow_weekly": 353.186976711593
+ },
+ "plan_diff_mw": {
+  "live_vs_daily": 0.0,
+  "daily_vs_weekly": 0.12319416035918411
+ },
+ "max_system_feature_revision_mw": {
+  "wind_d2": 0.0,
+  "pv_d2": 0.0,
+  "demand_d2": 0.0,
+  "wind_d1_night": 0.0,
+  "demand_d1_night": 0.7763750000012806,
+  "wind_d1_last": 0.0
+ }
+}

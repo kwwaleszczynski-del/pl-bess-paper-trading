@@ -1,7 +1,8 @@
 """Live paper trading: the morning plan for tomorrow and the settlement of plans whose prices are published.
 
-Archive layout (the daily workflow keeps it on the ``track-record`` branch, so every change has a public,
-time-stamped commit):
+Archive layout (the daily workflow keeps it on the ``track-record`` branch; when a plan was published is shown by
+the GitHub Actions run that wrote it and by the push in the repository's activity log, not by commit dates, which
+the client sets):
 
     plans/YYYY/YYYY-MM-DD.json            plan for delivery day YYYY-MM-DD, issued before the gate closure on the
                                           day before; never overwritten
@@ -24,7 +25,7 @@ import json
 import logging
 import os
 import subprocess
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -32,9 +33,18 @@ import pandas as pd
 
 from bess_paper import __version__
 from bess_paper.backtest import day_metrics
-from bess_paper.config import (BATTERY, DECISION_LOCAL, FUND_CUTOFF_LOCAL, GATE_LOCAL, MODEL, PRICE_REPORT, TZ,
-                               BatteryParams, ModelParams)
-from bess_paper.data import complete_days, expected_intervals
+from bess_paper.config import (
+    BATTERY,
+    DECISION_LOCAL,
+    FUND_CUTOFF_LOCAL,
+    GATE_LOCAL,
+    MODEL,
+    PRICE_REPORT,
+    TZ,
+    BatteryParams,
+    ModelParams,
+)
+from bess_paper.data import complete_days
 from bess_paper.features import FEATURES, build_features, lagged_prices, target
 from bess_paper.forecast import fit, predict, to_product, train_mask
 from bess_paper.optimizer import Plan, check_plan, soc_path
@@ -76,6 +86,28 @@ def code_version() -> str:
     return f"{__version__}+{sha[:12]}" if ok else __version__
 
 
+def run_context(replay: bool = False) -> dict:
+    """What started the run that makes a plan: recorded in every plan from 16.11.2026 on.
+
+    ``trigger`` is ``schedule`` or ``workflow_dispatch`` in GitHub Actions (with the run's link, whose start time GitHub
+    records), ``local`` outside Actions and ``replay`` for ``daily --now``. A replay plan never counts as a trade.
+    """
+    if replay:
+        return {"trigger": "replay"}
+    env = os.environ
+    if env.get("GITHUB_ACTIONS") != "true":
+        return {"trigger": "local"}
+    run_id = env.get("GITHUB_RUN_ID", "")
+    return {
+        "trigger": env.get("GITHUB_EVENT_NAME", "unknown"),
+        "actor": env.get("GITHUB_TRIGGERING_ACTOR") or env.get("GITHUB_ACTOR", ""),
+        "run_id": run_id,
+        "run_attempt": env.get("GITHUB_RUN_ATTEMPT", ""),
+        "run_url": f"{env.get('GITHUB_SERVER_URL', 'https://github.com')}/{env.get('GITHUB_REPOSITORY', '')}"
+                   f"/actions/runs/{run_id}",
+    }
+
+
 def as_of(prices: pd.DataFrame, system: pd.DataFrame, delivery: date) -> tuple[pd.DataFrame, pd.DataFrame]:
     """The data that exist at the decision for ``delivery``: prices up to D-1, system data up to 06:00 on D-1."""
     known = prices[prices["business_date"] < delivery]
@@ -85,8 +117,12 @@ def as_of(prices: pd.DataFrame, system: pd.DataFrame, delivery: date) -> tuple[p
 
 
 def make_plan(prices: pd.DataFrame, system: pd.DataFrame, delivery: date, now_utc: datetime,
-              params: ModelParams = MODEL, battery: BatteryParams = BATTERY) -> dict:
-    """Forecast and schedule for ``delivery``, made from the data known before its gate closure."""
+              params: ModelParams = MODEL, battery: BatteryParams = BATTERY, run: dict | None = None) -> dict:
+    """Forecast and schedule for ``delivery``, made from the data known before its gate closure.
+
+    ``issued_utc`` is ``now_utc``; the daily command replaces it by the time the plan is finished and checks the gate
+    again before writing it.
+    """
     gate = gate_closure(delivery)
     if now_utc >= gate:
         raise LateError(f"{now_utc:%Y-%m-%d %H:%M} UTC is after the gate closure for {delivery} ({gate:%H:%M} UTC)")
@@ -108,10 +144,11 @@ def make_plan(prices: pd.DataFrame, system: pd.DataFrame, delivery: date, now_ut
     last_price_day = max(complete_days(prices))
     return {
         "delivery_date": delivery.isoformat(),
-        "issued_utc": now_utc.astimezone(timezone.utc).isoformat(timespec="seconds"),
+        "issued_utc": now_utc.astimezone(UTC).isoformat(timespec="seconds"),
         "gate_closure_utc": gate.isoformat(timespec="seconds"),
         "decision_local": DECISION_LOCAL.isoformat(timespec="minutes"),
         "code_version": code_version(),
+        "run": run if run is not None else run_context(),
         "price_report": PRICE_REPORT,
         "inputs": {
             "last_price_day": last_price_day.isoformat(),
@@ -126,7 +163,8 @@ def make_plan(prices: pd.DataFrame, system: pd.DataFrame, delivery: date, now_ut
              "p90": round(float(c), 2), "charge_mw": round(float(ch), 6), "discharge_mw": round(float(dc), 6),
              "soc_mwh": round(float(s), 6)}
             for ts, a, b, c, ch, dc, s in zip(pd.DatetimeIndex(rows["start_utc"]), quantiles["p10"], quantiles["p50"],
-                                              quantiles["p90"], plan.charge_mw, plan.discharge_mw, plan.soc_mwh)
+                                              quantiles["p90"], plan.charge_mw, plan.discharge_mw, plan.soc_mwh,
+                                              strict=True)
         ],
         "_features": rows[["start_utc", *FEATURES]],
     }
@@ -144,13 +182,18 @@ Written only by the daily GitHub Actions run of the main branch. Paper trading: 
 - `ledger.csv`: one row per settled delivery day, appended once and never rewritten. P&L in PLN for a
   1 MW / 2 MWh battery, net of a degradation cost of 30 PLN/MWh discharged.
 
-The commit history of this branch is the audit trail: commit times show when each plan was published.
+Evidence of when a plan was published is kept by GitHub, not by this branch: the Actions run that wrote it (linked
+in each plan from 16.11.2026 on, with what triggered it: the GitHub schedule or a manual or scripted dispatch) and the
+push in the repository's activity log. Commit dates are written by the client and prove nothing on their own. Since
+30.10.2026 GitHub has started the scheduled runs after the gate, so plans come from dispatches by a scheduler on the
+owner's computer; mornings without one have no plan and count as no trade.
 """
 
 
 def ensure_readme(archive: Path) -> None:
+    """Write the archive's README, or bring it up to date (a normal new commit; history is never rewritten)."""
     path = archive / "README.md"
-    if not path.exists():
+    if not path.exists() or path.read_text(encoding="utf-8") != ARCHIVE_README:
         archive.mkdir(parents=True, exist_ok=True)
         path.write_text(ARCHIVE_README, encoding="utf-8", newline="\n")
 
@@ -241,8 +284,11 @@ def settle_day_live(delivery: date, prices: pd.DataFrame, plan: dict | None, now
                sold_mwh_perfect=perfect["sold_mwh"], cycles_perfect=perfect["cycles"])
     forecasts = {"yesterday": yesterday}
     quantiles = None
-    if plan is None:
-        row.update(status="no_plan", pnl_model=0.0, gross_model=0.0, sold_mwh_model=0.0, cycles_model=0.0)
+    replay = plan is not None and plan.get("run", {}).get("trigger") == "replay"
+    if plan is None or replay:
+        # no plan, or a replayed plan (written after the fact with daily --now): no trade for the live record
+        row.update(status="replay" if replay else "no_plan", pnl_model=0.0, gross_model=0.0, sold_mwh_model=0.0,
+                   cycles_model=0.0)
     else:
         model_plan, iv = _plan_from_file(plan)
         if len(iv) != len(actual):
@@ -264,7 +310,7 @@ def settle_pending(archive: Path, prices: pd.DataFrame, now_utc: datetime | None
 
     A day without a plan (e.g. the morning run failed) is recorded as ``no_plan`` with zero P&L.
     """
-    now_utc = now_utc or datetime.now(timezone.utc)
+    now_utc = now_utc or datetime.now(UTC)
     plans = planned_days(archive)
     if not plans:
         return []
@@ -300,3 +346,95 @@ def write_settlement_prices(archive: Path, day: date, prices: pd.DataFrame) -> N
     out = pd.DataFrame({"start_utc": pd.DatetimeIndex(rows["start_utc"]).strftime("%Y-%m-%dT%H:%M:%SZ"),
                         "price": rows["price"].to_numpy()})
     out.to_csv(path, index=False, lineterminator="\n")
+
+
+def drop_late_plans(archive: Path, new_files: list[Path], now_utc: datetime) -> list[Path]:
+    """Before a push: remove new plans (and their inputs) whose gate closure has passed, so none is published late."""
+    dropped = []
+    for path in new_files:
+        if path.suffix != ".json" or path.parent.parent.name != "plans" or not path.exists():
+            continue
+        plan = json.loads(path.read_text(encoding="utf-8"))
+        if datetime.fromisoformat(plan["gate_closure_utc"]) > now_utc:
+            continue
+        day = plan["delivery_date"]
+        for extra in [path, *sorted((archive / "inputs" / day[:4]).glob(f"{day}_*"))]:
+            extra.unlink(missing_ok=True)
+            dropped.append(extra)
+        log.warning("plan for %s not pushed: the gate closed at %s", day, plan["gate_closure_utc"])
+    return dropped
+
+
+def _block(frame: pd.DataFrame) -> dict:
+    pf = float(frame["pnl_perfect"].sum())
+    out: dict = {"days": int(len(frame)), "pnl_perfect": pf}
+    for k in ("model", "yesterday", "fixed"):
+        total = float(frame[f"pnl_{k}"].sum())
+        out[f"pnl_{k}"] = total
+        out[f"share_{k}"] = total / pf if pf else None
+    return out
+
+
+def live_summary(ledger: pd.DataFrame, archive: Path | None = None) -> dict:
+    """Headline of the live record, computed from the ledger alone (so it cannot drift from it)."""
+    if ledger.empty:
+        return {"days": 0, "badge": "no settled day yet"}
+    g = ledger.sort_values("date")
+    traded = g[g["status"] == "traded"]
+    out: dict = {
+        "first_day": g["date"].iloc[0], "last_day": g["date"].iloc[-1], "days": int(len(g)),
+        "traded": int(len(traded)), "no_plan": int((g["status"] == "no_plan").sum()),
+        "replay": int((g["status"] == "replay").sum()),
+        "all_days": _block(g), "traded_days": _block(traded),
+    }
+    if len(traded):
+        out["traded_days"].update(mae_model=float(traded["mae_model"].mean()),
+                                  mae_yesterday=float(traded["mae_yesterday"].mean()),
+                                  cover80=float(traded["cover80"].mean()))
+    if archive is not None:
+        triggers: dict[str, int] = {}
+        for day in traded["date"]:
+            plan = load_plan(archive, date.fromisoformat(day)) or {}
+            key = plan.get("run", {}).get("trigger", "not recorded")
+            triggers[key] = triggers.get(key, 0) + 1
+        out["plan_triggers"] = triggers
+    share = out["all_days"]["share_model"]
+    out["badge"] = (f"{out['traded']} of {out['days']} days traded, "
+                    f"{100 * share:.1f} % of perfect foresight" if share is not None else f"{out['days']} days")
+    return out
+
+
+def _dmy(day: str) -> str:
+    return f"{day[8:10]}.{day[5:7]}.{day[:4]}"
+
+
+def live_markdown(summary: dict) -> str:
+    """The live summary as the Markdown block of the README."""
+    if not summary.get("days"):
+        return "No delivery day has been settled yet.\n"
+    a, t = summary["all_days"], summary["traded_days"]
+
+    def cell(block: dict, k: str) -> str:
+        share = block.get(f"share_{k}")
+        return f"{block[f'pnl_{k}']:,.0f} ({100 * share:.1f} %)" if share is not None else f"{block[f'pnl_{k}']:,.0f}"
+
+    lines = [
+        f"Ledger from {_dmy(summary['first_day'])} to {_dmy(summary['last_day'])}: {summary['days']} settled delivery "
+        f"days, {summary['traded']} with a plan published before the gate, {summary['no_plan']} without "
+        f"(0 PLN for the forecast strategy)" + (f", {summary['replay']} replayed" if summary["replay"] else "") + ".",
+        "P&L in PLN, in brackets the share of perfect foresight on the same days.",
+        "",
+        "| Days | n | Forecast + MILP | Yesterday's prices | Fixed hours | Perfect foresight |",
+        "|---|---:|---:|---:|---:|---:|",
+        f"| all settled days | {a['days']} | {cell(a, 'model')} | {cell(a, 'yesterday')} | {cell(a, 'fixed')} | "
+        f"{a['pnl_perfect']:,.0f} |",
+        f"| days with a plan | {t['days']} | {cell(t, 'model')} | {cell(t, 'yesterday')} | {cell(t, 'fixed')} | "
+        f"{t['pnl_perfect']:,.0f} |",
+        "",
+    ]
+    if t["days"]:
+        lines.append(f"On the days with a plan the forecast had a mean absolute error of {t['mae_model']:.0f} PLN/MWh "
+                     f"(yesterday's prices {t['mae_yesterday']:.0f}) and its 10-90 % range contained "
+                     f"{100 * t['cover80']:.0f} % of prices. {t['days']} days are far too few to compare strategies.")
+        lines.append("")
+    return "\n".join(lines)

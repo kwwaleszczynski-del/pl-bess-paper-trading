@@ -22,8 +22,8 @@ from datetime import date
 import numpy as np
 
 from bess_paper.config import BATTERY, BatteryParams
-from bess_paper.features import minute_of_day
 from bess_paper.data import day_intervals
+from bess_paper.features import minute_of_day
 from bess_paper.forecast import to_product
 from bess_paper.optimizer import Plan, optimize, settle, soc_path
 

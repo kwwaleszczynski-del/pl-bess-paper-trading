@@ -1,0 +1,262 @@
+{
+ "days": 865,
+ "first_day": "2024-06-14",
+ "last_day": "2026-10-26",
+ "full_months": 27,
+ "partial_months": 2,
+ "model_vs": {
+  "yesterday": {
+   "pln_per_mw_year": 39109.09793699422,
+   "ci95_pln_per_mw_year": [
+    34080.963678338165,
+    44427.28521602601
+   ],
+   "share_days_model_better": 0.7190751445086705,
+   "full_months_model_ahead": 27,
+   "partial_months_model_ahead": 2
+  },
+  "week_mean": {
+   "pln_per_mw_year": -1598.878364739884,
+   "ci95_pln_per_mw_year": [
+    -4998.943856257226,
+    1640.3558117196526
+   ],
+   "share_days_model_better": 0.4728323699421965,
+   "full_months_model_ahead": 11,
+   "partial_months_model_ahead": 1
+  },
+  "last_week": {
+   "pln_per_mw_year": 41311.502873410405,
+   "ci95_pln_per_mw_year": [
+    34759.30369660405,
+    48507.16455466763
+   ],
+   "share_days_model_better": 0.7144508670520231,
+   "full_months_model_ahead": 27,
+   "partial_months_model_ahead": 2
+  },
+  "fixed": {
+   "pln_per_mw_year": 121713.86461271676,
+   "ci95_pln_per_mw_year": [
+    107692.7508224133,
+    136545.35619021673
+   ],
+   "share_days_model_better": 0.9086705202312139,
+   "full_months_model_ahead": 27,
+   "partial_months_model_ahead": 2
+  }
+ },
+ "months": [
+  {
+   "month": "2024-06",
+   "days": 17,
+   "capture_model": 0.8212183709677724,
+   "capture_yesterday": 0.7773781626319172,
+   "mae_model": 126.24262352941174
+  },
+  {
+   "month": "2024-07",
+   "days": 31,
+   "capture_model": 0.8707086280085898,
+   "capture_yesterday": 0.8116059066524919,
+   "mae_model": 122.11877419354838
+  },
+  {
+   "month": "2024-08",
+   "days": 31,
+   "capture_model": 0.9038362917920792,
+   "capture_yesterday": 0.799393069564522,
+   "mae_model": 93.95850322580645
+  },
+  {
+   "month": "2024-09",
+   "days": 30,
+   "capture_model": 0.9268513739047652,
+   "capture_yesterday": 0.8748841511692224,
+   "mae_model": 95.22108
+  },
+  {
+   "month": "2024-10",
+   "days": 31,
+   "capture_model": 0.866296673769133,
+   "capture_yesterday": 0.780717105960872,
+   "mae_model": 106.58330322580645
+  },
+  {
+   "month": "2024-11",
+   "days": 30,
+   "capture_model": 0.8187214353959457,
+   "capture_yesterday": 0.7744005102644995,
+   "mae_model": 121.24398333333335
+  },
+  {
+   "month": "2024-12",
+   "days": 31,
+   "capture_model": 0.6905803126342048,
+   "capture_yesterday": 0.5615260729556248,
+   "mae_model": 112.16240645161291
+  },
+  {
+   "month": "2025-01",
+   "days": 31,
+   "capture_model": 0.5688700556251359,
+   "capture_yesterday": 0.36827880335397223,
+   "mae_model": 94.1437870967742
+  },
+  {
+   "month": "2025-02",
+   "days": 28,
+   "capture_model": 0.7698644205969014,
+   "capture_yesterday": 0.6226418680301071,
+   "mae_model": 76.39138214285713
+  },
+  {
+   "month": "2025-03",
+   "days": 31,
+   "capture_model": 0.8614336000756769,
+   "capture_yesterday": 0.7843028678874115,
+   "mae_model": 92.6826516129032
+  },
+  {
+   "month": "2025-04",
+   "days": 30,
+   "capture_model": 0.9062019768421872,
+   "capture_yesterday": 0.83541558156641,
+   "mae_model": 89.38974666666667
+  },
+  {
+   "month": "2025-05",
+   "days": 31,
+   "capture_model": 0.8389236360336988,
+   "capture_yesterday": 0.6792534179870557,
+   "mae_model": 92.04930322580647
+  },
+  {
+   "month": "2025-06",
+   "days": 30,
+   "capture_model": 0.8840857949263367,
+   "capture_yesterday": 0.7262981127035295,
+   "mae_model": 105.49752333333335
+  },
+  {
+   "month": "2025-07",
+   "days": 31,
+   "capture_model": 0.887130540433354,
+   "capture_yesterday": 0.7850992608819626,
+   "mae_model": 72.46439032258064
+  },
+  {
+   "month": "2025-08",
+   "days": 31,
+   "capture_model": 0.9147129328030565,
+   "capture_yesterday": 0.8560191339005516,
+   "mae_model": 70.43491290322581
+  },
+  {
+   "month": "2025-09",
+   "days": 30,
+   "capture_model": 0.9294318535093303,
+   "capture_yesterday": 0.8381358197409936,
+   "mae_model": 98.39319333333331
+  },
+  {
+   "month": "2025-10",
+   "days": 31,
+   "capture_model": 0.7601532815694831,
+   "capture_yesterday": 0.6233763174931094,
+   "mae_model": 104.59578709677419
+  },
+  {
+   "month": "2025-11",
+   "days": 30,
+   "capture_model": 0.6787589576324361,
+   "capture_yesterday": 0.5420820151373764,
+   "mae_model": 102.85472333333334
+  },
+  {
+   "month": "2025-12",
+   "days": 31,
+   "capture_model": 0.5263859806633971,
+   "capture_yesterday": 0.3216947490342191,
+   "mae_model": 68.49002580645163
+  },
+  {
+   "month": "2026-01",
+   "days": 31,
+   "capture_model": 0.6800363549478428,
+   "capture_yesterday": 0.5466314285855693,
+   "mae_model": 140.2161741935484
+  },
+  {
+   "month": "2026-02",
+   "days": 28,
+   "capture_model": 0.7291358279762141,
+   "capture_yesterday": 0.6054039742836842,
+   "mae_model": 63.259924999999996
+  },
+  {
+   "month": "2026-03",
+   "days": 31,
+   "capture_model": 0.8717747619645438,
+   "capture_yesterday": 0.8025012449233319,
+   "mae_model": 113.20892580645165
+  },
+  {
+   "month": "2026-04",
+   "days": 30,
+   "capture_model": 0.8661390056687358,
+   "capture_yesterday": 0.7954886057714317,
+   "mae_model": 121.33935666666667
+  },
+  {
+   "month": "2026-05",
+   "days": 31,
+   "capture_model": 0.8387473441933945,
+   "capture_yesterday": 0.7567184075195881,
+   "mae_model": 97.30277419354839
+  },
+  {
+   "month": "2026-06",
+   "days": 30,
+   "capture_model": 0.8687092292140622,
+   "capture_yesterday": 0.8013715110030869,
+   "mae_model": 117.40638666666665
+  },
+  {
+   "month": "2026-07",
+   "days": 31,
+   "capture_model": 0.8267977759464487,
+   "capture_yesterday": 0.7193990278974612,
+   "mae_model": 103.89091612903223
+  },
+  {
+   "month": "2026-08",
+   "days": 31,
+   "capture_model": 0.8401616306193317,
+   "capture_yesterday": 0.7265921797842365,
+   "mae_model": 123.2857258064516
+  },
+  {
+   "month": "2026-09",
+   "days": 30,
+   "capture_model": 0.8621231456268109,
+   "capture_yesterday": 0.7416055264788132,
+   "mae_model": 164.18653333333333
+  },
+  {
+   "month": "2026-10",
+   "days": 26,
+   "capture_model": 0.6898739793128781,
+   "capture_yesterday": 0.5650959059608045,
+   "mae_model": 188.64442307692303
+  }
+ ],
+ "last_three_months": {
+  "first_day": "2026-08-01",
+  "last_day": "2026-10-26",
+  "days": 87,
+  "capture_model": 0.8050252049922461,
+  "capture_yesterday": 0.6856217458924876,
+  "mae_model": 156.9219367816092
+ }
+}

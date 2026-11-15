@@ -12,7 +12,7 @@ import json
 import logging
 import math
 import shutil
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from importlib import resources
 from pathlib import Path
 
@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from bess_paper.config import BATTERY, GATE_LOCAL, TZ
-from bess_paper.live import load_plan, planned_days, read_ledger, settlement_prices_path
+from bess_paper.live import live_summary, load_plan, planned_days, read_ledger, settlement_prices_path
 from bess_paper.strategies import FIXED_WINDOWS
 
 log = logging.getLogger(__name__)
@@ -132,12 +132,15 @@ def live_payload(archive: Path) -> dict:
     ledger = read_ledger(archive)
     settled = sorted(ledger["date"]) if len(ledger) else []
     upcoming = [d for d in plans if d.isoformat() not in set(settled)]
-    last_settled = date.fromisoformat(settled[-1]) if settled else None
+    # the last settled day that had a plan (days without one have nothing to show)
+    with_plan = [d for d in plans if d.isoformat() in set(settled)]
+    last_settled = with_plan[-1] if with_plan else None
     out: dict = {
         "start": plans[0].isoformat() if plans else None,
         "next_plan": _plan_payload(archive, upcoming[-1]) if upcoming else None,
         "last_settled": _plan_payload(archive, last_settled) if last_settled else None,
         "ledger": ledger.sort_values("date").to_dict("list") if len(ledger) else None,
+        "summary": live_summary(ledger, archive),
     }
     if len(ledger) >= 6:            # best and worst lists only once they cannot overlap
         bw = _best_worst(ledger.set_index("date"), "pnl_model", "pnl_perfect", min(5, len(ledger) // 2))
@@ -153,7 +156,7 @@ def fixed_windows_text() -> str:
 
 def build_payload(results: Path, archive: Path) -> dict:
     return _clean({
-        "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "battery": {k: getattr(BATTERY, k) for k in BATTERY.__dataclass_fields__},
         "gate_local": GATE_LOCAL.isoformat(timespec="minutes"),
         "fixed_windows": fixed_windows_text(),
@@ -173,6 +176,9 @@ def build_site(results: Path, archive: Path, out: Path) -> Path:
             shutil.copyfile(results / name, out / name)
     if (archive / "ledger.csv").exists():
         shutil.copyfile(archive / "ledger.csv", out / "ledger.csv")
+    # read by the README badge, so the headline there follows the ledger without a commit to main
+    summary = _clean(live_summary(read_ledger(archive), archive))
+    (out / "live_summary.json").write_text(json.dumps(summary, indent=1) + "\n", encoding="utf-8", newline="\n")
     (out / ".nojekyll").write_text("", encoding="utf-8")
     log.info("site written to %s", out / "index.html")
     return out / "index.html"
